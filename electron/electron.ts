@@ -9,77 +9,47 @@ import {IStudent, IHorse, ILesson, IDailyScheduleSlot} from './types';
 // === NEW & IMPROVED PDF GENERATION FUNCTION ====================== //
 // ================================================================= //
 
-async function generateAndShowCertificate(studentId: number) {
-    // 1. Fetch student and their 10 most recent lessons for the certificate
+async function generateAndShowCertificate(studentId: number, totalLessonCount: number) {
+    // 1. Fetch student name
     const studentArr: IStudent[] = await dbQuery('SELECT name FROM students WHERE id = ?', [studentId]);
     if (!studentArr.length) return;
     const studentName = studentArr[0].name;
 
+    // 2. Calculate the OFFSET using the provided totalLessonCount.
+    // This is the key part that uses the new argument.
+    const offset = totalLessonCount - 10;
+
+    // 3. Fetch the specific 10 lessons for this milestone using the offset.
     const lessonDetails: ILesson[] = await dbQuery(
         `SELECT l.date, h.name as horse_name
          FROM lessons l
          JOIN horses h ON l.horse_id = h.id
          WHERE l.student_id = ?
-         ORDER BY l.date DESC LIMIT 10`,
-        [studentId]
+         ORDER BY l.date ASC
+         LIMIT 10 OFFSET ?`,
+        [studentId, offset]
     );
 
-    // 2. Define File Path and Create PDF Document
+    // 4. Define File Path and Create PDF Document
     const desktopPath = app.getPath('desktop');
-    const filePath = path.join(desktopPath, `Certificate-${studentName.replace(/\s/g, '_')}-${Date.now()}.pdf`);
+    const filePath = path.join(desktopPath, `Certificate-10-Lessons-${studentName.replace(/\s/g, '_')}-${Date.now()}.pdf`);
     const doc = new PDFDocument({ size: 'A4', margin: 40 });
 
     doc.pipe(fs.createWriteStream(filePath));
 
-    // 3. --- Start Custom Layout ---
 
-    // Add Logo (handle potential errors)
-   /* try {
-        // Path needs to go from the compiled file (`build-electron`) to the root, then to assets
-        const logoPath = path.join(__dirname, '../../assets/logo.png');
-        doc.image(logoPath, {
-            fit: [100, 100], // Fit the logo into a 100x100 box
-            align: 'center',
-            valign: 'top'
-        }).moveDown(0.5);
-    } catch (error) {
-        console.error("Could not load logo:", error);
-    } */
+    // Header and main content...
+    doc.font('Helvetica-Bold').fontSize(20).text('Your Riding School Name', { align: 'center' }).moveDown(2);
+    doc.font('Helvetica').fontSize(16).text('Certificate of Completion', { align: 'center' }).moveDown(2);
+    doc.fontSize(14).text('This is to certify that', { align: 'center' }).moveDown(1);
+    doc.font('Helvetica-Bold').fillColor('#0056b3').fontSize(28).text(studentName, { align: 'center' }).moveDown(1);
+    doc.fillColor('black').font('Helvetica').fontSize(14).text('has successfully completed a package of 10 riding lessons.', { align: 'center' }).moveDown(2);
 
-    // School Name
-    doc.font('Helvetica-Bold').fontSize(20).text('Your Riding School Name', { align: 'center' });
-    doc.moveDown(2);
-
-    // Main Title
-    doc.font('Helvetica').fontSize(16).text('Certificate of Achievement', { align: 'center' });
-    doc.moveDown(0.5);
-
-    // Decorative Line
-    doc.strokeColor("#0056b3")
-        .lineWidth(2)
-        .moveTo(100, doc.y)
-        .lineTo(500, doc.y)
-        .stroke();
-    doc.moveDown(2);
-
-    // Main Content
-    doc.fontSize(14).text('This is to certify that', { align: 'center' });
-    doc.moveDown(1);
-
-    // Student Name (Styled)
-    doc.font('Helvetica-Bold').fillColor('#0056b3').fontSize(28).text(studentName, { align: 'center' });
-    doc.moveDown(1);
-
-    // Completion Text
-    doc.fillColor('black').font('Helvetica').fontSize(14).text('has successfully completed the following 10 riding lessons:', { align: 'center' });
-    doc.moveDown(2);
-
-    // Lesson Details Table (A simple manual table)
+    // Lesson Details Table...
     doc.font('Helvetica-Bold').fontSize(12);
     doc.text('Date', 150, doc.y);
     doc.text('Horse', 350, doc.y);
     doc.moveDown();
-    // Table line
     doc.strokeColor("#aaaaaa").lineWidth(1).moveTo(140, doc.y).lineTo(460, doc.y).stroke();
     doc.font('Helvetica').fontSize(11);
 
@@ -90,67 +60,78 @@ async function generateAndShowCertificate(studentId: number) {
     });
     doc.moveDown(3);
 
-
-    // Signature Area
+    // Signature Area...
     doc.text('_________________________', 70, doc.y, { lineBreak: false });
     doc.text('_________________________', 330, doc.y);
     doc.moveDown(0.5);
     doc.font('Helvetica-Bold').text('Instructor Signature', 95, doc.y, { lineBreak: false });
     doc.text('Date Issued', 380, doc.y);
 
-    // --- End Custom Layout ---
-
-    // Finalize the PDF and save it
     doc.end();
 
-    // 4. Show confirmation and open file (same as before)
+    // 6. Show confirmation and open file
     await dialog.showMessageBox({
         title: 'Certificate Generated!',
-        message: `A PDF certificate for ${studentName} has been saved to your Desktop.`,
+        message: `A 10-Lesson Certificate for ${studentName} has been saved to your Desktop.`,
     });
     shell.openPath(filePath);
 }
-
 // === NEW PDF Function for Daily Schedule ===
-async function generateDailySchedulePDF(date: string, scheduleSlots: IDailyScheduleSlot[]) {
+async function generateDailySchedulePDF(date: string, groupedSlots: Record<string, IDailyScheduleSlot[]>) {
+
+    const assetsPath = app.isPackaged
+        ? path.join(process.resourcesPath, 'assets')
+        : path.join(__dirname, '../assets');
+
+    // --- Define paths to our custom fonts using the robust assetsPath ---
+    const regularFontPath = path.join(assetsPath, 'fonts/Roboto-Regular.ttf');
+    const boldFontPath = path.join(assetsPath, 'fonts/Roboto-Bold.ttf');
     const desktopPath = app.getPath('desktop');
     const filePath = path.join(desktopPath, `Daily-Schedule-${date}.pdf`);
     const doc = new PDFDocument({ size: 'A4', margin: 50 });
 
     doc.pipe(fs.createWriteStream(filePath));
 
+    try {
+        doc.registerFont('regular', regularFontPath);
+        doc.registerFont('bold', boldFontPath);
+    } catch(err) {
+        console.error("Error registering fonts. Using Helvetica as a fallback.", err);
+        // Fallback to a standard font if the custom one isn't found
+        doc.registerFont('Roboto-Regular', 'Helvetica');
+        doc.registerFont('Roboto-Bold', 'Helvetica-Bold');
+    }
     // Header
-    doc.font('Helvetica-Bold').fontSize(22).text(`Daily Schedule: ${date}`, { align: 'center' });
+    doc.font('bold').fontSize(22).text(`Daily Schedule: ${date}`, { align: 'center' });
     doc.moveDown(2);
 
-    if (scheduleSlots.length === 0) {
-        doc.font('Helvetica').fontSize(14).text('No lessons scheduled for this day.', { align: 'center' });
+    const sortedTimes = Object.keys(groupedSlots).sort((a, b) => a.localeCompare(b));
+
+    if (sortedTimes.length === 0) {
+        doc.font('regular').fontSize(14).text('No lessons scheduled for this day.', { align: 'center' });
     } else {
-        // Sort slots by time before printing
-        scheduleSlots.sort((a, b) => a.time.localeCompare(b.time));
+        // --- NEW LOOPING LOGIC ---
 
-        for (const slot of scheduleSlots) {
-            // Slot Header
-            doc.font('Helvetica-Bold').fontSize(16).fillColor('#0056b3').text(`${slot.time} - ${slot.group_name || 'Group Lesson'}`);
-            doc.moveDown(0.5);
-
-            // Decorative Line
-            doc.strokeColor("#aaaaaa").lineWidth(1).moveTo(doc.x, doc.y).lineTo(500, doc.y).stroke();
-            doc.moveDown(1);
-
-            // Participants Table
-            doc.font('Helvetica-Bold').fontSize(12).fillColor('black');
-            doc.text('Student', 70, doc.y);
-            doc.text('Horse', 300, doc.y);
+        // Outer loop: Iterate through each time slot (e.g., "09:00", then "10:30")
+        for (const time of sortedTimes) {
+            // Print the main time header ONCE.
+            doc.font('bold').fontSize(18).fillColor('#0056b3').text(time);
             doc.moveDown(0.75);
 
-            doc.font('Helvetica').fontSize(11);
-            for (const p of slot.participants) {
-                doc.text(p.student_name, 70, doc.y);
-                doc.text(p.horse_name, 300, doc.y);
-                doc.moveDown(0.5);
+            // Get all the lesson groups happening at this time.
+            const lessonsAtThisTime = groupedSlots[time];
+
+            // Inner loop: Iterate through each group within that time slot.
+            for (const slot of lessonsAtThisTime) {
+
+                // Print the participants for this specific group.
+                doc.font('regular').fontSize(11).fillColor('#000000');
+                for (const p of slot.participants) {
+                    doc.text(`- ${p.student_name} riding ${p.horse_name}`, { indent: 40 });
+                }
+                doc.moveDown(0.75); // Space between groups within the same time slot.
             }
-            doc.moveDown(1.5); // Add space between slots
+            doc.moveDown(1.5); // Larger space between different time slots.
         }
     }
 
@@ -230,7 +211,7 @@ ipcMain.handle('add-lesson', async (e, lesson: Omit<ILesson, 'id' | 'student_nam
     // Check lesson count and generate PDF if needed
     const countRes = await dbQuery('SELECT COUNT(*) as count FROM lessons WHERE student_id = ?', [student_id]);
     if (countRes[0]?.count === 10) {
-        await generateAndShowCertificate(student_id);
+   //     await generateAndShowCertificate(student_id);
     }
 
     const newLesson: ILesson[] = await dbQuery('SELECT l.id, l.date, l.notes, l.student_id, l.horse_id, s.name as student_name, h.name as horse_name FROM lessons l JOIN students s ON l.student_id = s.id JOIN horses h ON l.horse_id = h.id WHERE l.id = ?', [result.lastID]);
@@ -243,34 +224,78 @@ ipcMain.handle('get-daily-schedule', async (e, date: string): Promise<IDailySche
 
 // This handler ALSO calls the reusable function. This fixes the bug.
 ipcMain.handle('print-daily-schedule', async (e, date: string) => {
-    // Re-fetch the data using our new function to ensure it's up-to-date.
     const scheduleData = await fetchFullSchedule(date);
-    await generateDailySchedulePDF(date, scheduleData);
+
+    // 2. --- NEW: Group the schedule data by time ---
+    const groupedByTime = scheduleData.reduce((acc, slot) => {
+        // Find or create the array for this time slot.
+        const timeGroup = acc[slot.time] || [];
+        // Add the current lesson slot to that array.
+        timeGroup.push(slot);
+        // Put the updated array back into our accumulator object.
+        acc[slot.time] = timeGroup;
+        return acc;
+    }, {} as Record<string, IDailyScheduleSlot[]>); // This is our new data structure.
+
+    // 3. Call the PDF generator with the new, grouped data structure.
+    await generateDailySchedulePDF(date, groupedByTime);
 });
 
 
 // This handler stays the same as before.
 ipcMain.handle('add-schedule-slot', async (e, slot: Omit<IDailyScheduleSlot, 'id'>): Promise<IDailyScheduleSlot> => {
-    // ... (no changes needed inside this handler)
-    // Start a transaction
+    // Start a transaction to ensure all or nothing is saved.
     await dbRun('BEGIN TRANSACTION');
     try {
+        // 1. Create the main schedule slot entry
         const scheduleResult = await dbRun('INSERT INTO daily_schedules (date, time, group_name) VALUES (?, ?, ?)', [slot.date, slot.time, slot.group_name]);
         const scheduleId = scheduleResult.lastID;
 
+        // 2. Loop through each participant in the group lesson
         for (const p of slot.participants) {
+            // 2a. Add the participant to this schedule slot
             await dbRun('INSERT INTO schedule_participants (schedule_id, student_id, horse_id) VALUES (?, ?, ?)', [scheduleId, p.student_id, p.horse_id]);
+
+            // ================================================================= //
+            // === NEW LOGIC: Add to individual lesson history & check milestone === //
+            // ================================================================= //
+
+            // 2b. Create a note for the lesson history to identify it as a group lesson.
+            const notesForHistory = `Group Lesson: ${slot.group_name || slot.time}`;
+
+            // 2c. Get the lesson count for this student BEFORE adding the new one.
+            const countResultBefore = await dbQuery('SELECT COUNT(*) as count FROM lessons WHERE student_id = ?', [p.student_id]);
+            const countBefore = countResultBefore[0]?.count || 0;
+
+            // 2d. Add the lesson to the main 'lessons' table for the individual student's history.
+            await dbRun(
+                'INSERT INTO lessons (student_id, horse_id, date, notes) VALUES (?, ?, ?, ?)',
+                [p.student_id, p.horse_id, slot.date, notesForHistory]
+            );
+
+            // 2e. Check if this new lesson crossed a 10-lesson milestone.
+            const countAfter = countBefore + 1;
+            const milestonesBefore = Math.floor(countBefore / 10);
+            const milestonesAfter = Math.floor(countAfter / 10);
+
+            if (milestonesAfter > milestonesBefore) {
+                console.log(`MILESTONE CROSSED (from group lesson): Student ${p.student_id} reached ${countAfter} lessons.`);
+                await generateAndShowCertificate(p.student_id, countAfter);
+            }
         }
+
+        // 3. Commit the transaction if everything was successful
         await dbRun('COMMIT');
 
-        // We can call our reusable function here too to get the fully populated object to return!
+        // 4. Return the newly created slot, fully populated with data.
         const fullNewSlot = await fetchFullSchedule(slot.date);
         return fullNewSlot.find(s => s.id === scheduleId)!;
 
     } catch (err) {
+        // If any step failed, roll back all database changes.
         await dbRun('ROLLBACK');
-        console.error('Transaction Error:', err);
-        throw err; // Rethrow error to frontend
+        console.error('Transaction Error in add-schedule-slot:', err);
+        throw err; // Rethrow the error to the frontend so it can be handled.
     }
 });
 

@@ -21,3 +21,14 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+/.idea/.gitignore
+/build-electron/database.js
+/build-electron/electron.js
+/.idea/misc.xml
+/.idea/modules.xml
+/build-electron/preload.js
+/.idea/inspectionProfiles/Project_Default.xml
+/.idea/riding-school-manager.iml
+/.idea/sqldialects.xml
+/build-electron/types.js
+/.idea/vcs.xml

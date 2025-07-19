@@ -57,6 +57,12 @@
       "build/**/*",
       "build-electron/**/*"
     ],
+    "extraResources": [
+      {
+        "from": "assets",
+        "to": "assets"
+      }
+    ],
     "directories": {
       "buildResources": "assets"
     }

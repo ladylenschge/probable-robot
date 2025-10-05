@@ -24,17 +24,17 @@ export const ReportManager = () => {
 
     return (
         <div className="report-container">
-            <h2>Student Progress Reports</h2>
-            <p>Track student progress and print reports for completed 10-lesson milestones.</p>
+            <h2>10er Karten</h2>
+            <p>Mitglieder Stundenfortschritt und drucken von 10er Karten.</p>
             {reportInfo.length === 0 ? (
                 <p>No students have completed any lessons yet.</p>
             ) : (
                 <table className="report-table" style={{width: '100%', borderCollapse: 'collapse'}}>
                     <thead>
                     <tr style={{textAlign: 'left', borderBottom: '2px solid #333'}}>
-                        <th style={{padding: '8px'}}>Student Name</th>
-                        <th style={{padding: '8px'}}>Progress to Next Report</th>
-                        <th style={{padding: '8px'}}>Completed Reports</th>
+                        <th style={{padding: '8px'}}>Name</th>
+                        <th style={{padding: '8px'}}>bis zur nächsten Karte</th>
+                        <th style={{padding: '8px'}}>Karten</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -42,7 +42,7 @@ export const ReportManager = () => {
                         <tr key={student.student_id} style={{borderBottom: '1px solid #ddd'}}>
                             <td style={{padding: '8px'}}>
                                 <strong>{student.student_name}</strong><br/>
-                                <small>Total Lessons: {student.total_lessons}</small>
+                                <small>Insgesamte Stunden: {student.total_lessons}</small>
                             </td>
 
                             {/* --- NEW PROGRESS DISPLAY --- */}
@@ -64,7 +64,7 @@ export const ReportManager = () => {
                                             className="submit-btn"
                                             onClick={() => handlePrint(student.student_id, milestone)}
                                         >
-                                            Print Lessons {milestone - 9}-{milestone}
+                                            Karte drucken {milestone - 9}-{milestone}
                                         </button>
                                     ))
                                 ) : (

@@ -13,7 +13,7 @@ const db = new sqlite3.Database(dbPath, (err) => {
             // Students Table
             db.run(`CREATE TABLE IF NOT EXISTS students (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL UNIQUE,
+                name TEXT NOT NULL,
                 contact_info TEXT
             )`);
             // Horses Table
@@ -51,6 +51,16 @@ const db = new sqlite3.Database(dbPath, (err) => {
                 PRIMARY KEY (schedule_id, student_id)
             )`);
 
+            // School Information Table (Singleton)
+            db.run(`CREATE TABLE IF NOT EXISTS school_info (
+                id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+                school_name TEXT,
+                street_address TEXT,
+                city_postal_code TEXT,
+                bank_name TEXT,
+                iban TEXT,
+                blz TEXT
+            )`);
         });
     }
 });

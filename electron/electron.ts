@@ -6,6 +6,14 @@ import { dbQuery, dbRun } from './database';
 import {IStudent, IHorse, ILesson, IDailyScheduleSlot, LessonDays, IStudentReportInfo} from './types';
 
 
+function formatDate(isoString: string)  {
+    const date = new Date(isoString);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}.${month}.${year}`;
+}
+
 // ================================================================= //
 // === NEW DATE FORMATTING HELPER FUNCTION ========================= //
 // ================================================================= //
@@ -16,7 +24,7 @@ function formatDateWithWeekday(dateString: string): string {
     const dayIndex = date.getDay(); // Returns a number 0-6
     const weekdayName = LessonDays[dayIndex]; // This converts the number (e.g., 1) to the string "Monday"
 
-    return `${weekdayName}, ${dateString}`;
+    return `${weekdayName}, ${formatDate(dateString)}`;
 }
 // ================================================================= //
 // === NEW & IMPROVED PDF GENERATION FUNCTION ====================== //
@@ -332,28 +340,32 @@ async function generateStudentReportPDF(studentId: number, milestone: number) {
 
     // 2. Setup PDF
     const desktopPath = app.getPath('desktop');
-    const filePath = path.join(desktopPath, `Report-Lessons-${offset + 1}-${milestone}-${studentName}.pdf`);
-    const doc = new PDFDocument({ size: 'A4', margin: 40 });
+    const filePath = path.join(desktopPath, `10erKarte-${offset + 1}-${milestone}-${studentName}.pdf`);
+    const doc = new PDFDocument({ size: 'A5', margin: 20 });
     doc.pipe(fs.createWriteStream(filePath));
 
     // 3. Build PDF Content
-    doc.font('Helvetica-Bold').fontSize(20).text(`Riding Progress Report`, { align: 'center' });
+    doc.font('Helvetica-Bold').fontSize(20).text(`Reitanlage Garnzell`, { align: 'center' });
+    doc.moveDown(0.5)
+   // doc.moveTo(100, 200).lineTo(500, 200).stroke();
+    doc.fontSize(12).text(`Reitkarte`, { align: 'center' });
     doc.moveDown(0.5);
-    doc.fontSize(16).text(studentName, { align: 'center' });
-    doc.moveDown(0.5);
-    doc.fontSize(12).text(`Lessons ${offset + 1} - ${milestone}`, { align: 'center' });
+    doc.fontSize(9).text(`Für: ${studentName}`, 20, doc.y, { align: 'left', lineBreak: false });
+    doc.fontSize(9).text(`Preis ${studentName} inkl. MwSt`, 150 ,doc.y, { align: 'right' });
+
     doc.moveDown(1.5);
 
     // Table Generation
     const tableTop = doc.y;
-    const tableHeaders = ['Date', 'Horse', 'Notes & Instructor Feedback'];
-    const columnStarts = [50, 150, 250];
-    const columnWidths = [90, 90, 250];
+    const tableHeaders = ['Datum', 'Pferd'];
+    const columnStarts = [30, 150];
+    const columnWidths = [90, 150];
+    const lineWidth = doc.page.width - 20;
 
     // Table Header
     doc.font('Helvetica-Bold').fontSize(11);
     tableHeaders.forEach((header, i) => doc.text(header, columnStarts[i], tableTop, { width: columnWidths[i] }));
-    doc.moveTo(50, tableTop + 20).lineTo(550, tableTop + 20).strokeColor('#aaaaaa').stroke();
+    doc.moveTo(30, tableTop + 20).lineTo(lineWidth, tableTop + 20).strokeColor('#aaaaaa').stroke();
 
     // Table Rows
     let currentRowY = tableTop + 25;
@@ -363,16 +375,20 @@ async function generateStudentReportPDF(studentId: number, milestone: number) {
 
         doc.text(formatDateWithWeekday(lesson.date), columnStarts[0], currentRowY, { width: columnWidths[0] });
         doc.text(lesson.horse_name || 'N/A', columnStarts[1], currentRowY, { width: columnWidths[1] });
-        doc.text(lesson.notes || 'No notes.', columnStarts[2], currentRowY, { width: columnWidths[2] });
 
         currentRowY += rowHeight;
-        doc.moveTo(50, currentRowY - 5).lineTo(550, currentRowY - 5).strokeColor('#eeeeee').stroke();
+        doc.moveTo(30, currentRowY - 5).lineTo(lineWidth, currentRowY - 5).strokeColor('#eeeeee').stroke();
 
         if (currentRowY > 750) { doc.addPage(); currentRowY = tableTop; }
     }
 
+    doc.moveDown(2);
+    doc.text('Der oben genannte Betrag wird abgebucht ja/nein', {align: 'right'});
+    doc.moveDown(0.5);
+    doc.text('Zur Information:: Der o.g Betrag setzt sich zusammen aus dem Honorar für Trainer und Unfall/Haftpflichtversicherung (Verein) einerseits, sowie Gebür für das gemietete Pferd (Fam. Schmid) andererseits.', {align: 'right'})
+
     doc.end();
-    await dialog.showMessageBox({ title: 'Report Generated', message: `The report for ${studentName} has been saved to your Desktop.` });
+    await dialog.showMessageBox({ title: 'Karte erstellt', message: `Karte für ${studentName} wurde auf dem Desktop gespeichert` });
     shell.openPath(filePath);
 }
 

@@ -25,11 +25,20 @@ export interface IDailyScheduleSlot {
     id: number;
     date: string;
     time: string;
-    group_name: string;
     participants: {
         student_id: number;
         student_name: string;
         horse_id: number;
         horse_name: string;
     }[];
+}
+
+export enum LessonDays {
+    Montag,
+    Dienstag,
+    Mittwoch,
+    Donnerstag,
+    Freitag,
+    Samstag,
+    Sonntag
 }

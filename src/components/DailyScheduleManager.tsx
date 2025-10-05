@@ -27,14 +27,13 @@ export const DailyScheduleManager = () => {
     const handleAddSlot = async (e: React.FormEvent) => {
         e.preventDefault();
         if (selectedStudents.length === 0 || selectedStudents.length !== selectedHorses.length) {
-            alert('Please select at least one student and ensure each student has a horse.');
+            alert('Mindestens eine Person und Pferd auswählen');
             return;
         }
 
         const newSlot: Omit<IDailyScheduleSlot, 'id'> = {
             date,
             time,
-            group_name: groupName,
             participants: selectedStudents.map((studentId, index) => ({
                 student_id: studentId,
                 horse_id: selectedHorses[index],
@@ -59,38 +58,36 @@ export const DailyScheduleManager = () => {
         <div>
             <div className="toolbar" style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '20px' }}>
                 <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{width: 'auto'}} />
-                <button className="submit-btn" onClick={handlePrint} disabled={schedule.length === 0}>Print Daily Schedule PDF</button>
+                <button className="submit-btn" onClick={handlePrint} disabled={schedule.length === 0}>Drucken Reitstunde (PDF)</button>
             </div>
 
             <div className="manager-container">
                 <div className="form-section">
-                    <h2>Add Schedule Slot</h2>
+                    <h2>Stunde hinzufügen</h2>
                     <form onSubmit={handleAddSlot}>
-                        <label>Time</label>
+                        <label>Zeit</label>
                         <input type="time" value={time} onChange={e => setTime(e.target.value)} required />
-                        <label>Group Name (optional)</label>
-                        <input type="text" value={groupName} onChange={e => setGroupName(e.target.value)} placeholder="e.g., Advanced Jumpers" />
 
-                        <label>Students (select multiple)</label>
+                        <label>Reitschüler (mehrere auswählbar)</label>
                         <select multiple value={selectedStudents.map(String)} onChange={e => setSelectedStudents(Array.from(e.target.selectedOptions, option => +option.value))} style={{height: '120px'}}>
                             {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </select>
 
-                        <label>Horses (select in corresponding order)</label>
+                        <label>Pferde (in gleicher Reihenfolge auswählen)</label>
                         <select multiple value={selectedHorses.map(String)} onChange={e => setSelectedHorses(Array.from(e.target.selectedOptions, option => +option.value))} style={{height: '120px'}}>
                             {horses.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
                         </select>
 
-                        <button className="submit-btn" type="submit">Add to Schedule</button>
+                        <button className="submit-btn" type="submit">Zur Stunde hinzufügen</button>
                     </form>
                 </div>
                 <div className="list-section">
-                    <h2>Schedule for {date}</h2>
+                    <h2>Stunden für {date}</h2>
                     {schedule.sort((a,b) => a.time.localeCompare(b.time)).map(slot => (
                         <div key={slot.id} style={{marginBottom: '20px'}}>
-                            <h3 style={{borderBottom: '1px solid #ccc', paddingBottom: '5px'}}>{slot.time} - {slot.group_name || 'Group'}</h3>
+                            <h3 style={{borderBottom: '1px solid #ccc', paddingBottom: '5px'}}>{slot.time}</h3>
                             {slot.participants.map(p => (
-                                <p key={p.student_id} style={{margin: '5px 0'}}><strong>{p.student_name}</strong> riding <strong>{p.horse_name}</strong></p>
+                                <p key={p.student_id} style={{margin: '5px 0'}}><strong>{p.student_name}</strong> - <strong>{p.horse_name}</strong></p>
                             ))}
                         </div>
                     ))}

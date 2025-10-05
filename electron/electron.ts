@@ -3,8 +3,21 @@ import path from 'path';
 import fs from 'fs';
 import PDFDocument from 'pdfkit';
 import { dbQuery, dbRun } from './database';
-import {IStudent, IHorse, ILesson, IDailyScheduleSlot} from './types';
+import {IStudent, IHorse, ILesson, IDailyScheduleSlot, LessonDays} from './types';
 
+
+// ================================================================= //
+// === NEW DATE FORMATTING HELPER FUNCTION ========================= //
+// ================================================================= //
+function formatDateWithWeekday(dateString: string): string {
+    // Appending 'T00:00:00' prevents timezone issues where '2023-12-25' might be interpreted
+    // as the evening of the 24th in some timezones.
+    const date = new Date(dateString + 'T00:00:00');
+    const dayIndex = date.getDay(); // Returns a number 0-6
+    const weekdayName = LessonDays[dayIndex]; // This converts the number (e.g., 1) to the string "Monday"
+
+    return `${weekdayName}, ${dateString}`;
+}
 // ================================================================= //
 // === NEW & IMPROVED PDF GENERATION FUNCTION ====================== //
 // ================================================================= //
@@ -87,8 +100,8 @@ async function generateDailySchedulePDF(date: string, groupedSlots: Record<strin
     const regularFontPath = path.join(assetsPath, 'fonts/Roboto-Regular.ttf');
     const boldFontPath = path.join(assetsPath, 'fonts/Roboto-Bold.ttf');
     const desktopPath = app.getPath('desktop');
-    const filePath = path.join(desktopPath, `Daily-Schedule-${date}.pdf`);
-    const doc = new PDFDocument({ size: 'A4', margin: 50 });
+    const filePath = path.join(desktopPath, `Uebersicht-Reitzeiten-${date}.pdf`);
+    const doc = new PDFDocument({ size: 'A4', margin: 80 });
 
     doc.pipe(fs.createWriteStream(filePath));
 
@@ -102,7 +115,7 @@ async function generateDailySchedulePDF(date: string, groupedSlots: Record<strin
         doc.registerFont('Roboto-Bold', 'Helvetica-Bold');
     }
     // Header
-    doc.font('bold').fontSize(22).text(`Daily Schedule: ${date}`, { align: 'center' });
+    doc.font('bold').fontSize(22).text(`Übersicht Reitzeiten: ${formatDateWithWeekday(date)}`, { align: 'center' });
     doc.moveDown(2);
 
     const sortedTimes = Object.keys(groupedSlots).sort((a, b) => a.localeCompare(b));
@@ -136,7 +149,7 @@ async function generateDailySchedulePDF(date: string, groupedSlots: Record<strin
     }
 
     doc.end();
-    await dialog.showMessageBox({ title: 'Schedule Generated', message: `The daily schedule for ${date} has been saved to your Desktop.` });
+    await dialog.showMessageBox({ title: 'Reitzeiten erstellt', message: `Die Reitzeiten für ${date} wurden auf dem Desktop gespeichert` });
     shell.openPath(filePath);
 }
 
@@ -248,7 +261,7 @@ ipcMain.handle('add-schedule-slot', async (e, slot: Omit<IDailyScheduleSlot, 'id
     await dbRun('BEGIN TRANSACTION');
     try {
         // 1. Create the main schedule slot entry
-        const scheduleResult = await dbRun('INSERT INTO daily_schedules (date, time, group_name) VALUES (?, ?, ?)', [slot.date, slot.time, slot.group_name]);
+        const scheduleResult = await dbRun('INSERT INTO daily_schedules (date, time) VALUES (?, ?)', [slot.date, slot.time]);
         const scheduleId = scheduleResult.lastID;
 
         // 2. Loop through each participant in the group lesson
@@ -261,7 +274,7 @@ ipcMain.handle('add-schedule-slot', async (e, slot: Omit<IDailyScheduleSlot, 'id
             // ================================================================= //
 
             // 2b. Create a note for the lesson history to identify it as a group lesson.
-            const notesForHistory = `Group Lesson: ${slot.group_name || slot.time}`;
+           // const notesForHistory = `Group Lesson: ${slot.group_name || slot.time}`;
 
             // 2c. Get the lesson count for this student BEFORE adding the new one.
             const countResultBefore = await dbQuery('SELECT COUNT(*) as count FROM lessons WHERE student_id = ?', [p.student_id]);
@@ -270,7 +283,7 @@ ipcMain.handle('add-schedule-slot', async (e, slot: Omit<IDailyScheduleSlot, 'id
             // 2d. Add the lesson to the main 'lessons' table for the individual student's history.
             await dbRun(
                 'INSERT INTO lessons (student_id, horse_id, date, notes) VALUES (?, ?, ?, ?)',
-                [p.student_id, p.horse_id, slot.date, notesForHistory]
+                [p.student_id, p.horse_id, slot.date]
             );
 
             // 2e. Check if this new lesson crossed a 10-lesson milestone.

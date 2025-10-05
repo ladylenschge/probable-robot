@@ -24,12 +24,12 @@ function App() {
 
     return (
         <div className="app-container">
-            <h1>Riding School Manager</h1>
+            <h1>Reitstunden Manager</h1>
             <nav>
-                <button onClick={() => setActiveTab('schedule')} className={activeTab === 'schedule' ? 'active' : ''}>Daily Schedule</button>
-                <button onClick={() => setActiveTab('lessons')} className={activeTab === 'lessons' ? 'active' : ''}>Lesson History</button>
-                <button onClick={() => setActiveTab('students')} className={activeTab === 'students' ? 'active' : ''}>Students</button>
-                <button onClick={() => setActiveTab('horses')} className={activeTab === 'horses' ? 'active' : ''}>Horses</button>
+                <button onClick={() => setActiveTab('schedule')} className={activeTab === 'schedule' ? 'active' : ''}>tägliche Reitstunden</button>
+                <button onClick={() => setActiveTab('lessons')} className={activeTab === 'lessons' ? 'active' : ''}>Stunden History</button>
+                <button onClick={() => setActiveTab('students')} className={activeTab === 'students' ? 'active' : ''}>Mitglieder</button>
+                <button onClick={() => setActiveTab('horses')} className={activeTab === 'horses' ? 'active' : ''}>Pferde</button>
             </nav>
             <main>
                 {renderContent()}

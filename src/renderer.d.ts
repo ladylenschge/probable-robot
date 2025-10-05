@@ -1,4 +1,4 @@
-import { IStudent, IHorse, ILesson } from '../electron/types';
+import {IStudent, IHorse, ILesson, IStudentReportInfo, IDailyScheduleSlot} from '../electron/types';
 
 export interface IElectronAPI {
     // Student methods
@@ -14,6 +14,8 @@ export interface IElectronAPI {
     getDailySchedule: (date: string) => Promise<IDailyScheduleSlot[]>;
     addScheduleSlot: (slot: Omit<IDailyScheduleSlot, 'id'>) => Promise<IDailyScheduleSlot>;
     printDailySchedule: (date: string) => Promise<void>;
+    getAvailableReports: () => Promise<IStudentReportInfo[]>;
+    printStudentReport: (studentId: number, milestone: number) => Promise<void>;
 }
 
 declare module 'react';

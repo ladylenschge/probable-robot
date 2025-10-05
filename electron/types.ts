@@ -42,3 +42,13 @@ export enum LessonDays {
     Samstag,
     Sonntag
 }
+
+export interface IStudentReportInfo {
+    student_id: number;
+    student_name: string;
+    total_lessons: number;
+    // Milestones the student has already completed
+    available_milestones: number[];
+    // How many lessons they have completed towards the NEXT milestone
+    progress_towards_next: number;
+}

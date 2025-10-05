@@ -18,7 +18,7 @@ export const HorseManager = () => {
     return (
         <div className="manager-container">
             <div className="form-section">
-                <h2>Add Horse</h2>
+                <h2>Pferd hinzufügen</h2>
                 <form onSubmit={handleSubmit}>
                     <input value={name} onChange={e => setName(e.target.value)} placeholder="Name" required />
                     <input value={breed} onChange={e => setBreed(e.target.value)} placeholder="Breed" />
@@ -26,7 +26,7 @@ export const HorseManager = () => {
                 </form>
             </div>
             <div className="list-section">
-                <h2>Horse List</h2>
+                <h2>Alle Pferde</h2>
                 <table>
                     <thead><tr><th>ID</th><th>Name</th><th>Breed</th></tr></thead>
                     <tbody>

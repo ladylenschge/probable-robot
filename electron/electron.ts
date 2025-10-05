@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import PDFDocument from 'pdfkit';
 import { dbQuery, dbRun } from './database';
-import {IStudent, IHorse, ILesson, IDailyScheduleSlot, LessonDays} from './types';
+import {IStudent, IHorse, ILesson, IDailyScheduleSlot, LessonDays, IStudentReportInfo} from './types';
 
 
 // ================================================================= //
@@ -310,6 +310,109 @@ ipcMain.handle('add-schedule-slot', async (e, slot: Omit<IDailyScheduleSlot, 'id
         console.error('Transaction Error in add-schedule-slot:', err);
         throw err; // Rethrow the error to the frontend so it can be handled.
     }
+});
+
+// === NEW PDF Function for Student Reports ===
+async function generateStudentReportPDF(studentId: number, milestone: number) {
+    // 1. Fetch Student and Lesson Data
+    const studentArr: IStudent[] = await dbQuery('SELECT name FROM students WHERE id = ?', [studentId]);
+    if (!studentArr.length) return;
+    const studentName = studentArr[0].name;
+
+    const offset = milestone - 10; // Get the correct block of 10
+    const lessonDetails: ILesson[] = await dbQuery(
+        `SELECT l.date, h.name as horse_name, l.notes
+         FROM lessons l
+         JOIN horses h ON l.horse_id = h.id
+         WHERE l.student_id = ?
+         ORDER BY l.date ASC
+         LIMIT 10 OFFSET ?`,
+        [studentId, offset]
+    );
+
+    // 2. Setup PDF
+    const desktopPath = app.getPath('desktop');
+    const filePath = path.join(desktopPath, `Report-Lessons-${offset + 1}-${milestone}-${studentName}.pdf`);
+    const doc = new PDFDocument({ size: 'A4', margin: 40 });
+    doc.pipe(fs.createWriteStream(filePath));
+
+    // 3. Build PDF Content
+    doc.font('Helvetica-Bold').fontSize(20).text(`Riding Progress Report`, { align: 'center' });
+    doc.moveDown(0.5);
+    doc.fontSize(16).text(studentName, { align: 'center' });
+    doc.moveDown(0.5);
+    doc.fontSize(12).text(`Lessons ${offset + 1} - ${milestone}`, { align: 'center' });
+    doc.moveDown(1.5);
+
+    // Table Generation
+    const tableTop = doc.y;
+    const tableHeaders = ['Date', 'Horse', 'Notes & Instructor Feedback'];
+    const columnStarts = [50, 150, 250];
+    const columnWidths = [90, 90, 250];
+
+    // Table Header
+    doc.font('Helvetica-Bold').fontSize(11);
+    tableHeaders.forEach((header, i) => doc.text(header, columnStarts[i], tableTop, { width: columnWidths[i] }));
+    doc.moveTo(50, tableTop + 20).lineTo(550, tableTop + 20).strokeColor('#aaaaaa').stroke();
+
+    // Table Rows
+    let currentRowY = tableTop + 25;
+    doc.font('Helvetica').fontSize(10);
+    for (const lesson of lessonDetails) {
+        const rowHeight = Math.max(20, (doc.heightOfString(lesson.notes || '', { width: columnWidths[2] })) + 10);
+
+        doc.text(formatDateWithWeekday(lesson.date), columnStarts[0], currentRowY, { width: columnWidths[0] });
+        doc.text(lesson.horse_name || 'N/A', columnStarts[1], currentRowY, { width: columnWidths[1] });
+        doc.text(lesson.notes || 'No notes.', columnStarts[2], currentRowY, { width: columnWidths[2] });
+
+        currentRowY += rowHeight;
+        doc.moveTo(50, currentRowY - 5).lineTo(550, currentRowY - 5).strokeColor('#eeeeee').stroke();
+
+        if (currentRowY > 750) { doc.addPage(); currentRowY = tableTop; }
+    }
+
+    doc.end();
+    await dialog.showMessageBox({ title: 'Report Generated', message: `The report for ${studentName} has been saved to your Desktop.` });
+    shell.openPath(filePath);
+}
+
+
+// === NEW IPC Handlers for Reports ===
+
+ipcMain.handle('get-available-reports', async (): Promise<IStudentReportInfo[]> => {
+    const query = `
+        SELECT l.student_id, s.name as student_name, COUNT(l.id) as total_lessons
+        FROM lessons l
+                 JOIN students s ON l.student_id = s.id
+        GROUP BY l.student_id
+        ORDER BY s.name
+    `;
+    const results = await dbQuery(query);
+
+    return results.map(student => {
+        // Calculate completed milestones (e.g., 10, 20, 30...)
+        const milestones: number[] = [];
+        for (let i = 10; i <= student.total_lessons; i += 10) {
+            milestones.push(i);
+        }
+
+        // --- NEW LOGIC ---
+        // Calculate progress towards the next milestone using the modulo operator.
+        // e.g., 27 lessons % 10 = 7 lessons of progress.
+        const progress = student.total_lessons % 10;
+
+        return {
+            student_id: student.student_id,
+            student_name: student.student_name,
+            total_lessons: student.total_lessons,
+            available_milestones: milestones,
+            progress_towards_next: progress // Add the new value to the result
+        };
+    });
+});
+
+ipcMain.handle('print-student-report', async (e, studentId: number, milestone: number) => {
+    await generateStudentReportPDF(studentId, milestone);
 });
 
 // App Lifecycle

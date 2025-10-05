@@ -18,6 +18,8 @@ const api = {
     getDailySchedule: (date: string): Promise<IDailyScheduleSlot[]> => ipcRenderer.invoke('get-daily-schedule', date),
     addScheduleSlot: (slot: Omit<IDailyScheduleSlot, 'id'>): Promise<IDailyScheduleSlot> => ipcRenderer.invoke('add-schedule-slot', slot),
     printDailySchedule: (date: string): Promise<void> => ipcRenderer.invoke('print-daily-schedule', date),
+    getAvailableReports: () => ipcRenderer.invoke('get-available-reports'),
+    printStudentReport: (studentId: number, milestone: number) => ipcRenderer.invoke('print-student-report', studentId, milestone),
 };
 
 contextBridge.exposeInMainWorld('api', api);

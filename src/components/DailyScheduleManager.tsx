@@ -9,7 +9,7 @@ export const DailyScheduleManager = () => {
 
     // Form state
     const [time, setTime] = useState('09:00');
-    const [groupName, setGroupName] = useState('');
+    //const [groupName, setGroupName] = useState('');
     const [selectedStudents, setSelectedStudents] = useState<number[]>([]);
     const [selectedHorses, setSelectedHorses] = useState<number[]>([]);
 
@@ -23,6 +23,14 @@ export const DailyScheduleManager = () => {
             window.api.getDailySchedule(date).then(setSchedule);
         }
     }, [date]);
+
+    const formatDate = (isoString: string) =>  {
+            const date = new Date(isoString);
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            return `${day}.${month}.${year}`;
+    }
 
     const handleAddSlot = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -82,7 +90,7 @@ export const DailyScheduleManager = () => {
                     </form>
                 </div>
                 <div className="list-section">
-                    <h2>Stunden für {date}</h2>
+                    <h2>Stunden für {formatDate(date)}</h2>
                     {schedule.sort((a,b) => a.time.localeCompare(b.time)).map(slot => (
                         <div key={slot.id} style={{marginBottom: '20px'}}>
                             <h3 style={{borderBottom: '1px solid #ccc', paddingBottom: '5px'}}>{slot.time}</h3>

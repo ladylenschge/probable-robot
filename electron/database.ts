@@ -57,6 +57,8 @@ const db = new sqlite3.Database(dbPath, (err) => {
                 school_name TEXT,
                 street_address TEXT,
                 zip_code TEXT,
+                phone_number TEXT, 
+                fax TEXT,          
                 bank_name TEXT,
                 iban TEXT,
                 blz TEXT

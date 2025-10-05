@@ -57,6 +57,8 @@ export interface ISchoolInfo {
     school_name: string;
     street_address: string;
     zip_code: string;
+    phone_number: string;
+    fax: string;
     bank_name: string;
     iban: string;
     blz: string;

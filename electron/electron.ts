@@ -319,7 +319,7 @@ ipcMain.handle('add-schedule-slot', async (e, slot: Omit<IDailyScheduleSlot, 'id
 
             if (milestonesAfter > milestonesBefore) {
                 console.log(`MILESTONE CROSSED (from group lesson): Student ${p.student_id} reached ${countAfter} lessons.`);
-                await generateAndShowCertificate(p.student_id, countAfter);
+                //await generateAndShowCertificate(p.student_id, countAfter);
             }
         }
 
@@ -342,6 +342,9 @@ ipcMain.handle('add-schedule-slot', async (e, slot: Omit<IDailyScheduleSlot, 'id
 async function generateStudentReportPDF(studentId: number, milestone: number) {
     // 1. Fetch Student and Lesson Data
     const studentArr: IStudent[] = await dbQuery('SELECT name FROM students WHERE id = ?', [studentId]);
+    const schoolInfoResults= await dbQuery(`SELECT * FROM school_info where id = 1`);
+    const schoolInfo = schoolInfoResults.length > 0 ? schoolInfoResults[0] : null;
+
     if (!studentArr.length) return;
     const studentName = studentArr[0].name;
 
@@ -356,6 +359,7 @@ async function generateStudentReportPDF(studentId: number, milestone: number) {
         [studentId, offset]
     );
 
+
     // 2. Setup PDF
     const desktopPath = app.getPath('desktop');
     const filePath = path.join(desktopPath, `10erKarte-${offset + 1}-${milestone}-${studentName}.pdf`);
@@ -363,9 +367,12 @@ async function generateStudentReportPDF(studentId: number, milestone: number) {
     doc.pipe(fs.createWriteStream(filePath));
 
     // 3. Build PDF Content
-    doc.font('Helvetica-Bold').fontSize(20).text(`Reitanlage Garnzell`, { align: 'center' });
+    doc.font('Helvetica-Bold').fontSize(20).text(`${schoolInfo.school_name}`, { align: 'center' });
+    doc.fontSize(5).text(`${schoolInfo.street_address} ${schoolInfo.zip_code} - Tel.: ${schoolInfo.phone_number} Faxnr.: ${schoolInfo.fax}`, { align: 'center' });
     doc.moveDown(0.5)
-   // doc.moveTo(100, 200).lineTo(500, 200).stroke();
+    doc.fontSize(5).text(`Bankverb.: ${schoolInfo.bank_name} - BLZ: ${schoolInfo.bic} - IBAN: ${schoolInfo.iban}`, { align: 'center' });
+    doc.moveDown(0.5)
+    // doc.moveTo(100, 200).lineTo(500, 200).stroke();
     doc.fontSize(12).text(`Reitkarte`, { align: 'center' });
     doc.moveDown(0.5);
     doc.fontSize(9).text(`Für: ${studentName}`, 20, doc.y, { align: 'left', lineBreak: false });
@@ -465,6 +472,8 @@ ipcMain.handle('update-school-info', async (e, info: ISchoolInfo) => {
             school_name = excluded.school_name,
             street_address = excluded.street_address,
             zip_code = excluded.zip_code,
+            phone_number = excluded.phone_number,
+            fax = excluded.fax,
             bank_name = excluded.bank_name,
             iban = excluded.iban,
             blz = excluded.blz;

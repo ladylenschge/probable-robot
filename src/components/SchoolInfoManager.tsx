@@ -40,6 +40,11 @@ export const SchoolInfoManager = () => {
                 <label>Ort und Postleitzahl</label>
                 <input name="zip_code" value={info.zip_code} onChange={handleChange} placeholder="e.g., 12345 Musterstadt" />
 
+                <label>Telefonnummer</label>
+                <input name="phone_number" value={info.phone_number} onChange={handleChange} placeholder="e.g., 089 / 123 456" />
+                <label>Fax</label>
+                <input name="fax" value={info.fax} onChange={handleChange} placeholder="e.g., 089 / 123 456 789"  />
+
                 <h4 style={{marginTop: '30px'}}>Bankdaten</h4>
                 <label>Bank Name</label>
                 <input name="bank_name" value={info.bank_name} onChange={handleChange} />

@@ -21,16 +21,15 @@ export const HorseManager = () => {
                 <h2>Pferd hinzufügen</h2>
                 <form onSubmit={handleSubmit}>
                     <input value={name} onChange={e => setName(e.target.value)} placeholder="Name" required />
-                    <input value={breed} onChange={e => setBreed(e.target.value)} placeholder="Breed" />
-                    <button className="submit-btn" type="submit">Add Horse</button>
+                    <button className="submit-btn" type="submit">Pferd hinzufügen</button>
                 </form>
             </div>
             <div className="list-section">
                 <h2>Alle Pferde</h2>
                 <table>
-                    <thead><tr><th>ID</th><th>Name</th><th>Breed</th></tr></thead>
+                    <thead><tr><th>ID</th><th>Name</th></tr></thead>
                     <tbody>
-                    {horses.map(h => <tr key={h.id}><td>{h.id}</td><td>{h.name}</td><td>{h.breed}</td></tr>)}
+                    {horses.map(h => <tr key={h.id}><td>{h.id}</td><td>{h.name}</td></tr>)}
                     </tbody>
                 </table>
             </div>

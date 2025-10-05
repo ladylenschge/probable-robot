@@ -29,7 +29,7 @@ export const SchoolInfoManager = () => {
 
     return (
         <div style={{ maxWidth: '600px', margin: '0 auto' }}>
-            <h2>Reitanlage Garnzell Einstellungen</h2>
+            <h2>Einstellungen</h2>
             <p>Informationen die auf Karten etc. angezeigt werden können</p>
             <form onSubmit={handleSubmit} className="form-section" style={{ padding: '20px' }}>
                 <h4>Details</h4>

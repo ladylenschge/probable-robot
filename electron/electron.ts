@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import PDFDocument from 'pdfkit';
 import { dbQuery, dbRun } from './database';
-import {IStudent, IHorse, ILesson, IDailyScheduleSlot, LessonDays, IStudentReportInfo} from './types';
+import {IStudent, IHorse, ILesson, IDailyScheduleSlot, LessonDays, IStudentReportInfo, ISchoolInfo} from './types';
 
 
 function formatDate(isoString: string)  {
@@ -429,6 +429,29 @@ ipcMain.handle('get-available-reports', async (): Promise<IStudentReportInfo[]> 
 
 ipcMain.handle('print-student-report', async (e, studentId: number, milestone: number) => {
     await generateStudentReportPDF(studentId, milestone);
+});
+
+// === NEW IPC Handlers for School Settings ===
+
+ipcMain.handle('get-school-info', async (): Promise<ISchoolInfo | null> => {
+    const results = await dbQuery('SELECT * FROM school_info WHERE id = 1');
+    return results.length > 0 ? results[0] : null;
+});
+
+ipcMain.handle('update-school-info', async (e, info: ISchoolInfo) => {
+    const { school_name, street_address, zip_code, bank_name, iban, blz } = info;
+    const query = `
+        INSERT INTO school_info (id, school_name, street_address, zip_code, bank_name, iban, blz)
+        VALUES (1, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            school_name = excluded.school_name,
+            street_address = excluded.street_address,
+            zip_code = excluded.zip_code,
+            bank_name = excluded.bank_name,
+            iban = excluded.iban,
+            blz = excluded.blz;
+    `;
+    await dbRun(query, [school_name, street_address, zip_code, bank_name, iban, blz]);
 });
 
 // App Lifecycle

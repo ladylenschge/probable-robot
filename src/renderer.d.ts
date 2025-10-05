@@ -14,8 +14,13 @@ export interface IElectronAPI {
     getDailySchedule: (date: string) => Promise<IDailyScheduleSlot[]>;
     addScheduleSlot: (slot: Omit<IDailyScheduleSlot, 'id'>) => Promise<IDailyScheduleSlot>;
     printDailySchedule: (date: string) => Promise<void>;
+    // 10 Cards
     getAvailableReports: () => Promise<IStudentReportInfo[]>;
-    printStudentReport: (studentId: number, milestone: number) => Promise<void>;
+    printStudentReport: (studentId: number, milestone: number) => Promise<void>
+    // School Info
+    getSchoolInfo: () => Promise<ISchoolInfo | null>;
+    updateSchoolInfo: (info: ISchoolInfo) => Promise<void>;
+
 }
 
 declare module 'react';

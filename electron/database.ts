@@ -56,7 +56,7 @@ const db = new sqlite3.Database(dbPath, (err) => {
                 id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
                 school_name TEXT,
                 street_address TEXT,
-                city_postal_code TEXT,
+                zip_code TEXT,
                 bank_name TEXT,
                 iban TEXT,
                 blz TEXT

@@ -5,15 +5,17 @@ import { StudentManager } from './components/StudentManager';
 import { HorseManager } from './components/HorseManager';
 import { LessonManager } from './components/LessonManager';
 import { DailyScheduleManager } from './components/DailyScheduleManager';
-import {ReportManager} from "./components/ReportManager"; // 1. Import the new component
+import {ReportManager} from "./components/ReportManager";
+import {SchoolInfoManager} from "./components/SchoolInfoManager"; // 1. Import the new component
 
-type Tab = 'lessons' | 'students' | 'horses' | 'schedule' | 'reports'; // 2. Add 'schedule' to the Tab type
+type Tab = 'lessons' | 'students' | 'horses' | 'schedule' | 'reports' | 'settings'; // 2. Add 'schedule' to the Tab type
 
 function App() {
     const [activeTab, setActiveTab] = useState<Tab>('schedule'); // Default to the new tab
 
     const renderContent = () => {
         switch (activeTab) {
+            case 'settings': return <SchoolInfoManager />;
             case 'reports': return <ReportManager />; // 3. Add case
             case 'schedule': return <DailyScheduleManager />; // 3. Add the case for the new component
             case 'students': return <StudentManager />;
@@ -33,6 +35,7 @@ function App() {
                 <button onClick={() => setActiveTab('students')} className={activeTab === 'students' ? 'active' : ''}>Mitglieder</button>
                 <button onClick={() => setActiveTab('horses')} className={activeTab === 'horses' ? 'active' : ''}>Pferde</button>
                 <button onClick={() => setActiveTab('reports')} className={activeTab === 'reports' ? 'active' : ''}>10er Karten</button>
+                <button onClick={() => setActiveTab('settings')} className={activeTab === 'settings' ? 'active' : ''}>Einstellungen</button>
             </nav>
             <main>
                 {renderContent()}

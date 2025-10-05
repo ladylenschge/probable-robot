@@ -20,6 +20,10 @@ const api = {
     printDailySchedule: (date: string): Promise<void> => ipcRenderer.invoke('print-daily-schedule', date),
     getAvailableReports: () => ipcRenderer.invoke('get-available-reports'),
     printStudentReport: (studentId: number, milestone: number) => ipcRenderer.invoke('print-student-report', studentId, milestone),
+
+    // School Info
+    getSchoolInfo: () => ipcRenderer.invoke('get-school-info'),
+    updateSchoolInfo: (info: string) => ipcRenderer.invoke('update-school-info', info),
 };
 
 contextBridge.exposeInMainWorld('api', api);

@@ -52,3 +52,12 @@ export interface IStudentReportInfo {
     // How many lessons they have completed towards the NEXT milestone
     progress_towards_next: number;
 }
+
+export interface ISchoolInfo {
+    school_name: string;
+    street_address: string;
+    zip_code: string;
+    bank_name: string;
+    iban: string;
+    blz: string;
+}

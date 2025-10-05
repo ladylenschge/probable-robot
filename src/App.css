@@ -1,5 +1,4 @@
 body {
-    font-family: sans-serif;
     background: #f0f2f5;
     margin: 0;
 }
@@ -60,10 +59,20 @@ input, select, textarea {
     border: 1px solid #ccc;
     border-radius: 4px;
     box-sizing: border-box;
+    font-family: inherit;
 }
 
 button.submit-btn {
     background: #0056b3;
+    color: white;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+}
+button.del-btn {
+    background: #b30000;
     color: white;
     padding: 10px 15px;
     border: none;

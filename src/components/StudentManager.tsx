@@ -1,39 +1,102 @@
+// src/components/StudentManager.tsx
+
 import React, { useState, useEffect } from 'react';
 import { IStudent } from '../../electron/types';
 
-export const StudentManager = () => { // Ensure 'export' is here
+// Define an initial state for a new/empty student form
+const initialFormState: IStudent = { id: 0, name: '', contact_info: '' };
+
+export const StudentManager = () => {
     const [students, setStudents] = useState<IStudent[]>([]);
-    const [name, setName] = useState('');
-    const [contact, setContact] = useState('');
+
+    const [formState, setFormState] = useState<IStudent>(initialFormState);
+    const [isEditing, setIsEditing] = useState(false);
 
     useEffect(() => {
         window.api.getStudents().then(setStudents);
     }, []);
 
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement|HTMLTextAreaElement>) => {
+        setFormState({ ...formState, [e.target.name]: e.target.value });
+    };
+
+    const handleEditClick = (student: IStudent) => {
+        setIsEditing(true);
+        setFormState(student);
+    };
+
+
+    const handleDeleteClick = async (student: IStudent) => {
+        await window.api.deleteStudent(student.id);
+        setStudents(students.filter(s => s.id !== student.id));
+    };
+
+
+    const handleCancelEdit = () => {
+        setIsEditing(false);
+        setFormState(initialFormState); // Reset the form to its empty state
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const newStudent = await window.api.addStudent(name, contact);
-        setStudents([...students, newStudent]);
-        setName('');
-        setContact('');
+        if (!formState.name) return; // Basic validation
+
+        if (isEditing) {
+            // If we are editing, call the update function
+            const updatedStudent = await window.api.updateStudent(formState);
+            // Find the student in the list and replace it with the updated version
+            setStudents(students.map(s => s.id === updatedStudent.id ? updatedStudent : s));
+        } else {
+            // Otherwise, call the add function for a new student
+            const newStudent = await window.api.addStudent(formState.name, formState.contact_info);
+            setStudents([...students, newStudent]);
+        }
+
+        // Reset the form after submission
+        handleCancelEdit();
     };
 
     return (
         <div className="manager-container">
             <div className="form-section">
-                <h2>Mitglied hinzufügen</h2>
+                <h2>{isEditing ? 'Bearbeiten' : 'Hinzufügen'}</h2>
                 <form onSubmit={handleSubmit}>
-                    <input value={name} onChange={e => setName(e.target.value)} placeholder="Name" required />
-                    <input value={contact} onChange={e => setContact(e.target.value)} placeholder="Kontaktinfo" />
-                    <button className="submit-btn" type="submit">Mitglied hinzufügen</button>
+                    <input name="name" value={formState.name} onChange={handleInputChange} placeholder="Name" required />
+                    <textarea name="contact_info" value={formState.contact_info} onChange={handleInputChange} placeholder="Kontaktinfo" />
+
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                        <button className="submit-btn" type="submit">
+                            {isEditing ? 'Änderungen speichern' : 'Mitglied hinzufügen'}
+                        </button>
+                        {isEditing && (
+                            <button type="button" onClick={handleCancelEdit} style={{ background: '#6c757d' }} className="submit-btn">
+                                Abbrechen
+                            </button>
+                        )}
+                    </div>
                 </form>
             </div>
             <div className="list-section">
-                <h2>Mitglieder Liste</h2>
+                <h2>Mitgliederliste</h2>
                 <table>
-                    <thead><tr><th>ID</th><th>Name</th><th>Kontaktinfo</th></tr></thead>
+                    <thead><tr><th>Name</th><th>Kontaktinfo</th><th>Actions</th></tr></thead>
                     <tbody>
-                    {students.map(s => <tr key={s.id}><td>{s.id}</td><td>{s.name}</td><td>{s.contact_info}</td></tr>)}
+                    {students.map(s => (
+                        <tr key={s.id}>
+                            <td>{s.name}</td>
+                            <td>{s.contact_info}</td>
+                            <td>
+                                <button onClick={() => handleEditClick(s)} style={{padding: '5px 10px'}}
+                                        className="submit-btn">
+                                    Bearbeiten
+                                </button>
+                                <button onClick={() => handleDeleteClick(s)} style={{padding: '5px 5px'}}
+                                        className="del-btn">
+                                    X
+                                </button>
+                            </td>
+                        </tr>
+                    ))}
                     </tbody>
                 </table>
             </div>

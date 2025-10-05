@@ -5,6 +5,9 @@ const api = {
     // Student methods
     getStudents: (): Promise<IStudent[]> => ipcRenderer.invoke('get-students'),
     addStudent: (name: string, contact: string): Promise<IStudent> => ipcRenderer.invoke('add-student', name, contact),
+    updateStudent: (student: IStudent): Promise<IStudent> => ipcRenderer.invoke('update-student', student),
+    deleteStudent: (studentId: IStudent["id"]): Promise<String> => ipcRenderer.invoke('delete-student', studentId),
+
 
     // Horse methods
     getHorses: (): Promise<IHorse[]> => ipcRenderer.invoke('get-horses'),

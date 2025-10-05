@@ -4,6 +4,8 @@ export interface IElectronAPI {
     // Student methods
     getStudents: () => Promise<IStudent[]>;
     addStudent: (name: string, contact: string) => Promise<IStudent>;
+    updateStudent: (student: IStudent) => Promise<IStudent>;
+    deleteStudent: (studentId: IStudent["id"]) => Promise<String>;
     // Horse methods
     getHorses: () => Promise<IHorse[]>;
     addHorse: (name: string, breed: string) => Promise<IHorse>;

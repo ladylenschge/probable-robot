@@ -206,6 +206,24 @@ ipcMain.handle('add-student', async (e, name: string, contact: string): Promise<
     return { id: result.lastID, name, contact_info: contact };
 });
 
+ipcMain.handle('update-student', async (e, student: IStudent): Promise<IStudent> => {
+    const { id, name, contact_info } = student;
+    await dbRun(
+        'UPDATE students SET name = ?, contact_info = ? WHERE id = ?',
+        [name, contact_info, id]
+    );
+    // Return the updated student object to the frontend
+    return student;
+});
+
+ipcMain.handle('delete-student', async (e, studentId: IStudent["id"]): Promise<string> => {
+    await dbRun(
+        'DELETE FROM students WHERE id = ?',
+        [studentId]
+    );
+    return 'delete successful'
+});
+
 // Horses
 ipcMain.handle('get-horses', async (): Promise<IHorse[]> => dbQuery('SELECT * FROM horses'));
 ipcMain.handle('add-horse', async (e, name: string, breed: string): Promise<IHorse> => {

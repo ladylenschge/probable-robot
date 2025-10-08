@@ -341,12 +341,28 @@ ipcMain.handle('add-schedule-slot', async (e, slot: Omit<IDailyScheduleSlot, 'id
 // === NEW PDF Function for Student Reports ===
 async function generateStudentReportPDF(studentId: number, milestone: number) {
     // 1. Fetch Student and Lesson Data
-    const studentArr: IStudent[] = await dbQuery('SELECT name FROM students WHERE id = ?', [studentId]);
+    const studentArr: IStudent[] = await dbQuery('SELECT name, isMember FROM students WHERE id = ?', [studentId]);
     const schoolInfoResults= await dbQuery(`SELECT * FROM school_info where id = 1`);
     const schoolInfo = schoolInfoResults.length > 0 ? schoolInfoResults[0] : null;
 
+    const schoolName = schoolInfo?.school_name || 'Reitanlage Garnzell';
+    const streetAddress = schoolInfo?.street_address || '';
+    const zipCode = schoolInfo?.zip_code || '';
+    const phoneNumber = schoolInfo?.phone_number || '';
+    const fax = schoolInfo?.fax || '';
+    let price = schoolInfo?.price_10_card_nonMembers || 100;
+    const bankName = schoolInfo?.bank_name || '';
+    const iban = schoolInfo?.iban || '';
+    const blz = schoolInfo?.blz || '';
+
+
     if (!studentArr.length) return;
     const studentName = studentArr[0].name;
+    let isMember = studentArr[0].isMember;
+
+    if(isMember) {
+        price = schoolInfo.price_10_card_members;
+    }
 
     const offset = milestone - 10; // Get the correct block of 10
     const lessonDetails: ILesson[] = await dbQuery(
@@ -367,16 +383,16 @@ async function generateStudentReportPDF(studentId: number, milestone: number) {
     doc.pipe(fs.createWriteStream(filePath));
 
     // 3. Build PDF Content
-    doc.font('Helvetica-Bold').fontSize(20).text(`${schoolInfo.school_name}`, { align: 'center' });
-    doc.fontSize(5).text(`${schoolInfo.street_address} ${schoolInfo.zip_code} - Tel.: ${schoolInfo.phone_number} Faxnr.: ${schoolInfo.fax}`, { align: 'center' });
+    doc.font('Helvetica-Bold').fontSize(20).text(`${schoolName}`, { align: 'center' });
+    doc.fontSize(7).text(`${streetAddress} ${zipCode} - Tel.: ${phoneNumber} Faxnr.: ${fax}`, { align: 'center' });
     doc.moveDown(0.5)
-    doc.fontSize(5).text(`Bankverb.: ${schoolInfo.bank_name} - BLZ: ${schoolInfo.bic} - IBAN: ${schoolInfo.iban}`, { align: 'center' });
+    doc.fontSize(7).text(`Bankverb.: ${bankName} - BLZ: ${blz} - IBAN: ${iban}`, { align: 'center' });
     doc.moveDown(0.5)
     // doc.moveTo(100, 200).lineTo(500, 200).stroke();
     doc.fontSize(12).text(`Reitkarte`, { align: 'center' });
     doc.moveDown(0.5);
     doc.fontSize(9).text(`Für: ${studentName}`, 20, doc.y, { align: 'left', lineBreak: false });
-    doc.fontSize(9).text(`Preis ${studentName} inkl. MwSt`, 150 ,doc.y, { align: 'right' });
+    doc.fontSize(9).text(`Preis: ${price}€ inkl. MwSt`, 150 ,doc.y, { align: 'right' });
 
     doc.moveDown(1.5);
 
@@ -408,9 +424,9 @@ async function generateStudentReportPDF(studentId: number, milestone: number) {
     }
 
     doc.moveDown(2);
-    doc.text('Der oben genannte Betrag wird abgebucht ja/nein', {align: 'right'});
+    doc.fontSize(7).text('Der oben genannte Betrag wird abgebucht ja/nein',  20, doc.y, { align: 'left'});
     doc.moveDown(0.5);
-    doc.text('Zur Information:: Der o.g Betrag setzt sich zusammen aus dem Honorar für Trainer und Unfall/Haftpflichtversicherung (Verein) einerseits, sowie Gebür für das gemietete Pferd (Fam. Schmid) andererseits.', {align: 'right'})
+    doc.fontSize(7).text('Zur Information:: Der o.g Betrag setzt sich zusammen aus dem Honorar für Trainer und Unfall/Haftpflichtversicherung (Verein) einerseits, sowie Gebür für das gemietete Pferd (Fam. Schmid) andererseits.', 20, doc.y, { align: 'left' });
 
     doc.end();
     await dialog.showMessageBox({ title: 'Karte erstellt', message: `Karte für ${studentName} wurde auf dem Desktop gespeichert` });

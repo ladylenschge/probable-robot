@@ -27,7 +27,7 @@ export const ReportManager = () => {
             <h2>10er Karten</h2>
             <p>Mitglieder Stundenfortschritt und drucken von 10er Karten.</p>
             {reportInfo.length === 0 ? (
-                <p>No students have completed any lessons yet.</p>
+                <p>Noch keine 10erKarten vorhanden.</p>
             ) : (
                 <table className="report-table" style={{width: '100%', borderCollapse: 'collapse'}}>
                     <thead>
@@ -68,7 +68,7 @@ export const ReportManager = () => {
                                         </button>
                                     ))
                                 ) : (
-                                    <span style={{color: '#6c757d'}}>None yet</span>
+                                    <span style={{color: '#6c757d'}}>Keine vorhanden</span>
                                 )}
                             </td>
                         </tr>

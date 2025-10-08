@@ -1,9 +1,9 @@
-import {IStudent, IHorse, ILesson, IStudentReportInfo, IDailyScheduleSlot} from '../electron/types';
+import {IStudent, IHorse, ILesson, IStudentReportInfo, IDailyScheduleSlot, ISchoolInfo} from '../electron/types';
 
 export interface IElectronAPI {
     // Student methods
     getStudents: () => Promise<IStudent[]>;
-    addStudent: (name: string, contact: string) => Promise<IStudent>;
+    addStudent: (name: string, contact: string, isMember: boolean) => Promise<IStudent>;
     updateStudent: (student: IStudent) => Promise<IStudent>;
     deleteStudent: (studentId: IStudent["id"]) => Promise<String>;
     // Horse methods

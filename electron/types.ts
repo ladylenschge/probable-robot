@@ -2,6 +2,7 @@ export interface IStudent {
     id: number;
     name: string;
     contact_info: string;
+    isMember: boolean;
 }
 
 export interface IHorse {

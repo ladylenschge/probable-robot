@@ -4,7 +4,7 @@ import { IStudent, IHorse, ILesson, IDailyScheduleSlot } from './types';
 const api = {
     // Student methods
     getStudents: (): Promise<IStudent[]> => ipcRenderer.invoke('get-students'),
-    addStudent: (name: string, contact: string): Promise<IStudent> => ipcRenderer.invoke('add-student', name, contact),
+    addStudent: (name: string, contact: string, isMember: boolean): Promise<IStudent> => ipcRenderer.invoke('add-student', name, contact, isMember),
     updateStudent: (student: IStudent): Promise<IStudent> => ipcRenderer.invoke('update-student', student),
     deleteStudent: (studentId: IStudent["id"]): Promise<String> => ipcRenderer.invoke('delete-student', studentId),
 

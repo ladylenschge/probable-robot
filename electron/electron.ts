@@ -201,16 +201,16 @@ async function fetchFullSchedule(date: string): Promise<IDailyScheduleSlot[]> {
 // IPC Handlers
 // Students
 ipcMain.handle('get-students', async (): Promise<IStudent[]> => dbQuery('SELECT * FROM students'));
-ipcMain.handle('add-student', async (e, name: string, contact: string): Promise<IStudent> => {
-    const result = await dbRun('INSERT INTO students (name, contact_info) VALUES (?, ?)', [name, contact]);
-    return { id: result.lastID, name, contact_info: contact };
+ipcMain.handle('add-student', async (e, name: string, contact: string, isMember: boolean): Promise<IStudent> => {
+    const result = await dbRun('INSERT INTO students (name, contact_info, isMember) VALUES (?, ?, ?)', [name, contact, isMember ? 1 : 0]);
+    return { id: result.lastID, name, contact_info: contact, isMember};
 });
 
 ipcMain.handle('update-student', async (e, student: IStudent): Promise<IStudent> => {
-    const { id, name, contact_info } = student;
+    const { id, name, contact_info,isMember } = student;
     await dbRun(
-        'UPDATE students SET name = ?, contact_info = ? WHERE id = ?',
-        [name, contact_info, id]
+        'UPDATE students SET name = ?, contact_info = ?, isMember = ? WHERE id = ?',
+        [name, contact_info, isMember ? 1 : 0, id,]
     );
     // Return the updated student object to the frontend
     return student;

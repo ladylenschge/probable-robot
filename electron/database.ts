@@ -14,6 +14,7 @@ const db = new sqlite3.Database(dbPath, (err) => {
             db.run(`CREATE TABLE IF NOT EXISTS students (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
+                isMember INTEGER DEFAULT 0,
                 contact_info TEXT
             )`);
             // Horses Table

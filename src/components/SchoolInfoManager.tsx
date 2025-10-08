@@ -3,7 +3,7 @@ import { ISchoolInfo } from '../../electron/types';
 
 const initialInfoState: ISchoolInfo = {
     school_name: '', street_address: '', zip_code: '',
-    bank_name: '', iban: '', blz: '',
+    bank_name: '', iban: '', blz: '', phone_number: '', fax: '', price_10_card_members: '', price_10_card_nonMembers: ''
 };
 
 export const SchoolInfoManager = () => {
@@ -22,39 +22,54 @@ export const SchoolInfoManager = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        await window.api.updateSchoolInfo(info);
+        const infoToSave = {
+            ...info,
+            price_10_card_members: Number(info.price_10_card_members) || 0,
+            price_10_card_nonMembers: Number(info.price_10_card_nonMembers) || 0,
+        };
+        await window.api.updateSchoolInfo(infoToSave as ISchoolInfo);
         setSaveMessage('Einstellungen erfolgreich gespeichert!');
-        setTimeout(() => setSaveMessage(''), 3000); // Hide message after 3 seconds
+        setTimeout(() => setSaveMessage(''), 6000); // Hide message after 3 seconds
     };
 
     return (
         <div style={{ maxWidth: '600px', margin: '0 auto' }}>
             <h2>Einstellungen</h2>
             <p>Informationen die auf Karten etc. angezeigt werden können</p>
-            <form onSubmit={handleSubmit} className="form-section" style={{ padding: '20px' }}>
+            <form onSubmit={handleSubmit} className="form-section" style={{padding: '20px'}}>
                 <h4>Details</h4>
                 <label>Name</label>
-                <input name="school_name" value={info.school_name} onChange={handleChange} placeholder="e.g., Reitanlage Garnzell" />
+                <input name="school_name" value={info.school_name} onChange={handleChange}
+                       placeholder="e.g., Reitanlage Garnzell"/>
                 <label>Adresse</label>
-                <input name="street_address" value={info.street_address} onChange={handleChange} placeholder="e.g., Musterstraße 1" />
+                <input name="street_address" value={info.street_address} onChange={handleChange}
+                       placeholder="e.g., Musterstraße 1"/>
                 <label>Ort und Postleitzahl</label>
-                <input name="zip_code" value={info.zip_code} onChange={handleChange} placeholder="e.g., 12345 Musterstadt" />
+                <input name="zip_code" value={info.zip_code} onChange={handleChange}
+                       placeholder="e.g., 12345 Musterstadt"/>
 
                 <label>Telefonnummer</label>
-                <input name="phone_number" value={info.phone_number} onChange={handleChange} placeholder="e.g., 089 / 123 456" />
+                <input name="phone_number" value={info.phone_number} onChange={handleChange}
+                       placeholder="e.g., 089 / 123 456"/>
                 <label>Fax</label>
-                <input name="fax" value={info.fax} onChange={handleChange} placeholder="e.g., 089 / 123 456 789"  />
+                <input name="fax" value={info.fax} onChange={handleChange} placeholder="e.g., 089 / 123 456 789"/>
 
                 <h4 style={{marginTop: '30px'}}>Bankdaten</h4>
                 <label>Bank Name</label>
-                <input name="bank_name" value={info.bank_name} onChange={handleChange} />
+                <input name="bank_name" value={info.bank_name} onChange={handleChange}/>
                 <label>IBAN</label>
-                <input name="iban" value={info.iban} onChange={handleChange} />
+                <input name="iban" value={info.iban} onChange={handleChange} placeholder="DE123456789"/>
                 <label>BLZ</label>
-                <input name="blz" value={info.blz} onChange={handleChange} />
+                <input name="blz" value={info.blz} onChange={handleChange}/>
 
-                <button type="submit" className="submit-btn" style={{ marginTop: '20px' }}>Einstellung speichern</button>
-                {saveMessage && <p style={{ color: 'green', marginTop: '10px' }}>{saveMessage}</p>}
+                <h4 style={{marginTop: '30px'}}>Preise</h4>
+                <label>Preis für Mitglieder (10er karte)</label>
+                <input name="price_10_card_members" type={"number"} value={info.price_10_card_members} onChange={handleChange} placeholder="150"/>
+                <label>Preis für nicht Mitglieder (10er karte)</label>
+                <input name="price_10_card_nonMembers" type={"number"} value={info.price_10_card_nonMembers} onChange={handleChange} placeholder="150"/>
+
+                <button type="submit" className="submit-btn" style={{marginTop: '20px'}}>Einstellung speichern</button>
+                {saveMessage && <p style={{color: 'green', marginTop: '10px'}}>{saveMessage}</p>}
             </form>
         </div>
     );

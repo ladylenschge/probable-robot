@@ -464,10 +464,10 @@ ipcMain.handle('get-school-info', async (): Promise<ISchoolInfo | null> => {
 });
 
 ipcMain.handle('update-school-info', async (e, info: ISchoolInfo) => {
-    const { school_name, street_address, zip_code, bank_name, iban, blz } = info;
+    const { school_name, street_address, zip_code, phone_number, fax, bank_name, iban, blz,price_10_card_members, price_10_card_nonMembers } = info;
     const query = `
-        INSERT INTO school_info (id, school_name, street_address, zip_code, bank_name, iban, blz)
-        VALUES (1, ?, ?, ?, ?, ?, ?)
+        INSERT INTO school_info (id, school_name, street_address, zip_code, phone_number, fax, bank_name, iban, blz, price_10_card_members, price_10_card_nonMembers)
+        VALUES (1, ?, ?, ?, ?, ?, ?, ?,?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             school_name = excluded.school_name,
             street_address = excluded.street_address,
@@ -476,9 +476,11 @@ ipcMain.handle('update-school-info', async (e, info: ISchoolInfo) => {
             fax = excluded.fax,
             bank_name = excluded.bank_name,
             iban = excluded.iban,
-            blz = excluded.blz;
+            blz = excluded.blz,
+            price_10_card_members = excluded.price_10_card_members,
+            price_10_card_nonMembers = excluded.price_10_card_nonMembers;
     `;
-    await dbRun(query, [school_name, street_address, zip_code, bank_name, iban, blz]);
+    await dbRun(query, [school_name, street_address, zip_code, phone_number, fax, bank_name, iban, blz, price_10_card_members, price_10_card_nonMembers]);
 });
 
 // App Lifecycle

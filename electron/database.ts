@@ -61,7 +61,9 @@ const db = new sqlite3.Database(dbPath, (err) => {
                 fax TEXT,          
                 bank_name TEXT,
                 iban TEXT,
-                blz TEXT
+                blz TEXT,
+                price_10_card_members INTEGER,
+                price_10_card_nonMembers INTEGER
             )`);
         });
     }

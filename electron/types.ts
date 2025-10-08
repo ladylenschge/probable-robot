@@ -62,4 +62,6 @@ export interface ISchoolInfo {
     bank_name: string;
     iban: string;
     blz: string;
+    price_10_card_members: number | '';
+    price_10_card_nonMembers:  number | '';
 }

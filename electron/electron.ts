@@ -4,7 +4,39 @@ import fs from 'fs';
 import PDFDocument from 'pdfkit';
 import { dbQuery, dbRun } from './database';
 import {IStudent, IHorse, ILesson, IDailyScheduleSlot, LessonDays, IStudentReportInfo, ISchoolInfo} from './types';
+import { autoUpdater } from 'electron-updater';
 
+
+function initializeAutoUpdater() {
+    // This will immediately check for updates and then every hour thereafter.
+    autoUpdater.checkForUpdatesAndNotify();
+
+    autoUpdater.on('update-available', (_info) => {
+        dialog.showMessageBox({
+            type: 'info',
+            title: 'Update Available',
+            message: 'Eine neue Version ist verfügbar und wird im Hintergrund heruntergeladen'
+        });
+    });
+
+    autoUpdater.on('update-downloaded', (_info) => {
+        dialog.showMessageBox({
+            type: 'info',
+            title: 'Update Ready to Install',
+            message: 'The update has been downloaded. Restart the application to apply the changes.',
+            buttons: ['Restart Now', 'Later']
+        }).then((buttonIndex) => {
+            // The user clicked "Restart Now"
+            if (buttonIndex.response === 0) {
+                autoUpdater.quitAndInstall();
+            }
+        });
+    });
+
+    autoUpdater.on('error', (err) => {
+        console.error('Error in auto-updater. ' + err);
+    });
+}
 
 function formatDate(isoString: string)  {
     const date = new Date(isoString);
@@ -166,7 +198,7 @@ function createWindow() {
     const win = new BrowserWindow({
         width: 1200, height: 800,
         webPreferences: {
-            preload: path.join(__dirname, 'preload.js'), // Use compiled JS file
+            preload: path.join(__dirname, 'preload.js'),
         },
     });
 
@@ -500,5 +532,17 @@ ipcMain.handle('update-school-info', async (e, info: ISchoolInfo) => {
 });
 
 // App Lifecycle
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+    createWindow();
+
+    if (app.isPackaged) {
+        initializeAutoUpdater();
+    }
+
+    app.on('activate', () => {
+        if (BrowserWindow.getAllWindows().length === 0) {
+            createWindow();
+        }
+    });
+});
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

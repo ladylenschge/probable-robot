@@ -35,13 +35,13 @@ export interface IDailyScheduleSlot {
 }
 
 export enum LessonDays {
-    MO,
-    DI,
-    MI,
-    DO,
-    FR,
-    SA,
-    SO
+    Montag,
+    Dienstag,
+    Mittwoch,
+    Donnerstag,
+    Freitag,
+    Samstag,
+    Sonntag
 }
 
 export interface IStudentReportInfo {

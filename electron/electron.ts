@@ -47,8 +47,6 @@ function formatDate(isoString: string)  {
 }
 
 function formatDateWithWeekday(dateString: string): string {
-    // Appending 'T00:00:00' prevents timezone issues where '2023-12-25' might be interpreted
-    // as the evening of the 24th in some timezones.
     const date = new Date(dateString + 'T00:00:00');
     const dayIndex = date.getDay(); // Returns a number 0-6
     const weekdayName = LessonDays[dayIndex]; // This converts the number (e.g., 1) to the string "Monday"
@@ -56,134 +54,94 @@ function formatDateWithWeekday(dateString: string): string {
     return `${weekdayName}, ${formatDate(dateString)}`;
 }
 
-async function generateAndShowCertificate(studentId: number, totalLessonCount: number) {
-    // 1. Fetch student name
-    const studentArr: IStudent[] = await dbQuery('SELECT name FROM students WHERE id = ?', [studentId]);
-    if (!studentArr.length) return;
-    const studentName = studentArr[0].name;
+async function generateDailySchedulePDF(date: string, groupedSlots: Record<string, IDailyScheduleSlot[]>) {
+    // 1. --- SETUP --- (This part is unchanged)
+    const schoolInfoResults = await dbQuery('SELECT * FROM school_info WHERE id = 1');
+    const schoolInfo = schoolInfoResults.length > 0 ? schoolInfoResults[0] : null;
+    const schoolName = schoolInfo?.school_name || 'Your Riding School';
 
-    // 2. Calculate the OFFSET using the provided totalLessonCount.
-    // This is the key part that uses the new argument.
-    const offset = totalLessonCount - 10;
-
-    // 3. Fetch the specific 10 lessons for this milestone using the offset.
-    const lessonDetails: ILesson[] = await dbQuery(
-        `SELECT l.date, h.name as horse_name
-         FROM lessons l
-         JOIN horses h ON l.horse_id = h.id
-         WHERE l.student_id = ?
-         ORDER BY l.date ASC
-         LIMIT 10 OFFSET ?`,
-        [studentId, offset]
-    );
-
-    // 4. Define File Path and Create PDF Document
     const desktopPath = app.getPath('desktop');
-    const filePath = path.join(desktopPath, `Certificate-10-Lessons-${studentName.replace(/\s/g, '_')}-${Date.now()}.pdf`);
+    const filePath = path.join(desktopPath, `Daily-Schedule-${date}.pdf`);
     const doc = new PDFDocument({ size: 'A4', margin: 40 });
 
     doc.pipe(fs.createWriteStream(filePath));
 
-
-    // Header and main content...
-    doc.font('Helvetica-Bold').fontSize(20).text('Your Riding School Name', { align: 'center' }).moveDown(2);
-    doc.font('Helvetica').fontSize(16).text('Certificate of Completion', { align: 'center' }).moveDown(2);
-    doc.fontSize(14).text('This is to certify that', { align: 'center' }).moveDown(1);
-    doc.font('Helvetica-Bold').fillColor('#0056b3').fontSize(28).text(studentName, { align: 'center' }).moveDown(1);
-    doc.fillColor('black').font('Helvetica').fontSize(14).text('has successfully completed a package of 10 riding lessons.', { align: 'center' }).moveDown(2);
-
-    // Lesson Details Table...
-    doc.font('Helvetica-Bold').fontSize(12);
-    doc.text('Date', 150, doc.y);
-    doc.text('Horse', 350, doc.y);
-    doc.moveDown();
-    doc.strokeColor("#aaaaaa").lineWidth(1).moveTo(140, doc.y).lineTo(460, doc.y).stroke();
-    doc.font('Helvetica').fontSize(11);
-
-    lessonDetails.forEach(lesson => {
-        doc.moveDown(0.5);
-        doc.text(lesson.date, 150, doc.y);
-        doc.text(lesson.horse_name || 'N/A', 350, doc.y);
-    });
-    doc.moveDown(3);
-
-    // Signature Area...
-    doc.text('_________________________', 70, doc.y, { lineBreak: false });
-    doc.text('_________________________', 330, doc.y);
-    doc.moveDown(0.5);
-    doc.font('Helvetica-Bold').text('Instructor Signature', 95, doc.y, { lineBreak: false });
-    doc.text('Date Issued', 380, doc.y);
-
-    doc.end();
-
-    // 6. Show confirmation and open file
-    await dialog.showMessageBox({
-        title: 'Certificate Generated!',
-        message: `A 10-Lesson Certificate for ${studentName} has been saved to your Desktop.`,
-    });
-    shell.openPath(filePath);
-}
-async function generateDailySchedulePDF(date: string, groupedSlots: Record<string, IDailyScheduleSlot[]>) {
-
-    const assetsPath = app.isPackaged
-        ? path.join(process.resourcesPath, 'assets')
-        : path.join(__dirname, '../assets');
-
-    // --- Define paths to our custom fonts using the robust assetsPath ---
-    const regularFontPath = path.join(assetsPath, 'fonts/Roboto-Regular.ttf');
-    const boldFontPath = path.join(assetsPath, 'fonts/Roboto-Bold.ttf');
-    const desktopPath = app.getPath('desktop');
-    const filePath = path.join(desktopPath, `Uebersicht-Reitzeiten-${date}.pdf`);
-    const doc = new PDFDocument({ size: 'A4', margin: 80 });
-
-    doc.pipe(fs.createWriteStream(filePath));
-
-    try {
-        doc.registerFont('regular', regularFontPath);
-        doc.registerFont('bold', boldFontPath);
-    } catch(err) {
-        console.error("Error registering fonts. Using Helvetica as a fallback.", err);
-        // Fallback to a standard font if the custom one isn't found
-        doc.registerFont('Roboto-Regular', 'Helvetica');
-        doc.registerFont('Roboto-Bold', 'Helvetica-Bold');
-    }
-    // Header
-    doc.font('bold').fontSize(22).text(`Übersicht Reitzeiten: ${formatDateWithWeekday(date)}`, { align: 'center' });
+    // 2. --- PDF HEADER --- (This part is unchanged)
+    doc.font('Helvetica-Bold').fontSize(18).text(schoolName, { align: 'center' });
+    doc.font('Helvetica').fontSize(14).text(`Daily Schedule: ${formatDateWithWeekday(date)}`, { align: 'center' });
     doc.moveDown(2);
 
+    // 3. --- TABLE GENERATION LOGIC ---
+
+    const tableTop = doc.y;
+    const columnStarts = [50, 120, 270, 420];
+    const columnWidths = [60, 140, 140, 140];
+    const headerHeight = 25;
+    const rowHeight = 20;
+
+    const generateHeader = (y: number) => {
+        doc.font('Helvetica-Bold').fontSize(11);
+        const headers = ['Time', 'Group', 'Student', 'Horse'];
+        headers.forEach((header, i) => doc.text(header, columnStarts[i], y, { width: columnWidths[i] }));
+        doc.moveTo(columnStarts[0] - 10, y + headerHeight - 5)
+            .lineTo(columnStarts[3] + columnWidths[3] + 10, y + headerHeight - 5)
+            .strokeColor('#333333').lineWidth(1.5).stroke();
+    };
+
+    generateHeader(tableTop);
+    let currentRowY = tableTop + headerHeight;
     const sortedTimes = Object.keys(groupedSlots).sort((a, b) => a.localeCompare(b));
 
     if (sortedTimes.length === 0) {
-        doc.font('regular').fontSize(14).text('No lessons scheduled for this day.', { align: 'center' });
+        doc.font('Helvetica').fontSize(14).text('No lessons scheduled for this day.', { align: 'center'});
     } else {
-        // --- NEW LOOPING LOGIC ---
-
-        // Outer loop: Iterate through each time slot (e.g., "09:00", then "10:30")
-        for (const time of sortedTimes) {
-            // Print the main time header ONCE.
-            doc.font('bold').fontSize(18).fillColor('#0056b3').text(time);
-            doc.moveDown(0.75);
-
-            // Get all the lesson groups happening at this time.
+        // We get the index here to know when we're on the last item.
+        sortedTimes.forEach((time, timeIndex) => {
             const lessonsAtThisTime = groupedSlots[time];
 
-            // Inner loop: Iterate through each group within that time slot.
-            for (const slot of lessonsAtThisTime) {
+            lessonsAtThisTime.forEach((slot, groupIndex) => {
+                slot.participants.forEach((p, participantIndex) => {
+                    if (currentRowY > 750) {
+                        doc.addPage();
+                        currentRowY = tableTop;
+                        generateHeader(currentRowY);
+                        currentRowY += headerHeight;
+                    }
 
-                // Print the participants for this specific group.
-                doc.font('regular').fontSize(11).fillColor('#000000');
-                for (const p of slot.participants) {
-                    doc.text(`- ${p.student_name} riding ${p.horse_name}`, { indent: 40 });
-                }
-                doc.moveDown(0.75); // Space between groups within the same time slot.
-            }
-            doc.moveDown(1.5); // Larger space between different time slots.
-        }
+                    const timeText = (participantIndex === 0 && slot === lessonsAtThisTime[0]) ? time : '';
+                    const rowData = [timeText, p.student_name, p.horse_name];
+
+                    doc.font('Helvetica').fontSize(10);
+                    rowData.forEach((text, i) => {
+                        doc.text(text, columnStarts[i], currentRowY, { width: columnWidths[i] });
+                    });
+
+                    const isLastParticipantInTimeBlock =
+                        (groupIndex === lessonsAtThisTime.length - 1) &&
+                        (participantIndex === slot.participants.length - 1);
+
+                    if (isLastParticipantInTimeBlock) {
+                        if (timeIndex < sortedTimes.length - 1) {
+                            doc.moveTo(columnStarts[0] - 10, currentRowY + rowHeight - 5)
+                                .lineTo(columnStarts[3] + columnWidths[3] + 10, currentRowY + rowHeight - 5)
+                                .strokeColor('#999999').lineWidth(1.0).stroke();
+                        }
+                    } else {
+                        doc.moveTo(columnStarts[0] - 10, currentRowY + rowHeight - 5)
+                            .lineTo(columnStarts[3] + columnWidths[3] + 10, currentRowY + rowHeight - 5)
+                            .strokeColor('#eeeeee').lineWidth(0.5).stroke();
+                    }
+                    currentRowY += rowHeight;
+                });
+            });
+
+        });
     }
 
     doc.end();
-    await dialog.showMessageBox({ title: 'Reitzeiten erstellt', message: `Die Reitzeiten für ${date} wurden auf dem Desktop gespeichert` });
+    await dialog.showMessageBox({ title: 'Schedule Generated', message: `The daily schedule for ${date} has been saved to your Desktop.` });
     shell.openPath(filePath);
+
 }
 
 function createWindow() {
@@ -425,7 +383,7 @@ async function generateStudentReportPDF(studentId: number, milestone: number) {
     for (const lesson of lessonDetails) {
         const rowHeight = Math.max(20, (doc.heightOfString(lesson.notes || '', { width: columnWidths[2] })) + 10);
 
-        doc.text(formatDateWithWeekday(lesson.date), columnStarts[0], currentRowY, { width: columnWidths[0] });
+        doc.text(formatDate(lesson.date), columnStarts[0], currentRowY, { width: columnWidths[0] });
         doc.text(lesson.horse_name || 'N/A', columnStarts[1], currentRowY, { width: columnWidths[1] });
 
         currentRowY += rowHeight;

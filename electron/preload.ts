@@ -20,7 +20,10 @@ const api = {
     // Daily Schedule methods
     getDailySchedule: (date: string): Promise<IDailyScheduleSlot[]> => ipcRenderer.invoke('get-daily-schedule', date),
     addScheduleSlot: (slot: Omit<IDailyScheduleSlot, 'id'>): Promise<IDailyScheduleSlot> => ipcRenderer.invoke('add-schedule-slot', slot),
+    deleteScheduleSlot: (scheduleId: number): Promise<void> => ipcRenderer.invoke('delete-schedule-slot', scheduleId),
+    deleteScheduleParticipant: (scheduleId: number, studentId: number): Promise<void> => ipcRenderer.invoke('delete-schedule-participant', scheduleId, studentId),
     printDailySchedule: (date: string): Promise<void> => ipcRenderer.invoke('print-daily-schedule', date),
+
     getAvailableReports: () => ipcRenderer.invoke('get-available-reports'),
     printStudentReport: (studentId: number, milestone: number) => ipcRenderer.invoke('print-student-report', studentId, milestone),
 

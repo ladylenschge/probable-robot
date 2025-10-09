@@ -275,6 +275,19 @@ ipcMain.handle('get-lessons', async (): Promise<ILesson[]> => {
     return dbQuery(query);
 });
 
+ipcMain.handle('delete-schedule-slot', async (e, scheduleId: number) => {
+    console.log(`Attempting to delete schedule slot with ID: ${scheduleId}`);
+    await dbRun('DELETE FROM daily_schedules WHERE id = ?', [scheduleId]);
+});
+
+ipcMain.handle('delete-schedule-participant', async (e, scheduleId: number, studentId: number) => {
+    console.log(`Attempting to delete student ${studentId} from schedule slot ${scheduleId}`);
+    await dbRun(
+        'DELETE FROM schedule_participants WHERE schedule_id = ? AND student_id = ?',
+        [scheduleId, studentId]
+    )
+});
+
 ipcMain.handle('add-lesson', async (e, lesson: Omit<ILesson, 'id' | 'student_name' | 'horse_name'>): Promise<ILesson> => {
     const { student_id, horse_id, date, notes } = lesson;
     const result = await dbRun('INSERT INTO lessons (student_id, horse_id, date, notes) VALUES (?, ?, ?, ?)', [student_id, horse_id, date, notes]);
@@ -324,17 +337,8 @@ ipcMain.handle('add-schedule-slot', async (e, slot: Omit<IDailyScheduleSlot, 'id
 
         // 2. Loop through each participant in the group lesson
         for (const p of slot.participants) {
-            // 2a. Add the participant to this schedule slot
             await dbRun('INSERT INTO schedule_participants (schedule_id, student_id, horse_id) VALUES (?, ?, ?)', [scheduleId, p.student_id, p.horse_id]);
 
-            // ================================================================= //
-            // === NEW LOGIC: Add to individual lesson history & check milestone === //
-            // ================================================================= //
-
-            // 2b. Create a note for the lesson history to identify it as a group lesson.
-           // const notesForHistory = `Group Lesson: ${slot.group_name || slot.time}`;
-
-            // 2c. Get the lesson count for this student BEFORE adding the new one.
             const countResultBefore = await dbQuery('SELECT COUNT(*) as count FROM lessons WHERE student_id = ?', [p.student_id]);
             const countBefore = countResultBefore[0]?.count || 0;
 

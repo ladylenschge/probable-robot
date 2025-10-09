@@ -2,33 +2,67 @@
   "name": "riding-school-manager",
   "version": "1.0.0",
   "private": true,
+  "description": "A desktop application to manage a riding school.",
+  "author": "ladylenschge",
   "main": "build-electron/electron.js",
   "homepage": "./",
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
     "tsc:electron": "tsc --project electron/tsconfig.json",
-    "electron:dev": "npm run tsc:electron && concurrently \"npm start\" \"wait-on http://localhost:3000 && electron .\"",
-    "electron:build": "npm run build && npm run tsc:electron && electron-builder"
+    "electron:dev": "npm run tsc:electron && concurrently \"npm start\" \"wait-on http-get://localhost:3000 && electron .\"",
+    "electron:build": "npm run build && npm run tsc:electron && electron-builder",
+    "rebuild": "electron-rebuild -f -w sqlite3"
   },
   "dependencies": {
-    "@testing-library/dom": "^10.4.0",
-    "@testing-library/jest-dom": "^6.6.3",
-    "@testing-library/react": "^16.3.0",
-    "@testing-library/user-event": "^13.5.0",
-    "electron-updater": "^6.6.2",
-    "pdfkit": "^0.17.1",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
+    "electron-updater": "^6.1.7",
+    "pdfkit": "^0.14.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
     "react-scripts": "5.0.1",
-    "sqlite3": "^5.1.7",
-    "web-vitals": "^2.1.4"
+    "sqlite3": "^5.1.6",
+    "web-vitals": "^5.1.0"
   },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
+  "devDependencies": {
+    "@electron/rebuild": "^3.7.2",
+    "@types/node": "^16.18.68",
+    "@types/pdfkit": "^0.13.3",
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.18",
+    "@types/sqlite3": "^3.1.11",
+    "concurrently": "^8.2.2",
+    "electron": "^28.1.0",
+    "electron-builder": "^24.9.1",
+    "typescript": "^4.9.5",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.example.ridingschoolmanager",
+    "productName": "Riding School Manager",
+    "extraMetadata": {
+      "main": "build-electron/electron.js"
+    },
+    "files": [
+      "build/**/*",
+      "build-electron/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "buildResources": "assets",
+      "output": "dist"
+    },
+    "extraResources": [
+      {
+        "from": "assets",
+        "to": "assets"
+      }
+    ],
+    "publish": {
+      "provider": "github",
+      "owner": "ladylenschge",
+      "repo": "probable-robot"
+    }
   },
   "browserslist": {
     "production": [
@@ -41,36 +75,5 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
-  },
-  "devDependencies": {
-    "@types/pdfkit": "^0.17.1",
-    "@types/react": "^19.1.8",
-    "@types/sqlite3": "^3.1.11",
-    "concurrently": "^9.2.0",
-    "electron": "^37.2.3",
-    "electron-builder": "^26.0.12",
-    "wait-on": "^8.0.3"
-  },
-  "build": {
-    "appId": "com.example.ridingschoolmanager",
-    "productName": "Riding School Manager",
-    "files": [
-      "build/**/*",
-      "build-electron/**/*"
-    ],
-    "extraResources": [
-      {
-        "from": "assets",
-        "to": "assets"
-      }
-    ],
-    "directories": {
-      "buildResources": "assets"
-    },
-    "publish": {
-      "provider": "github",
-      "owner": "ladylenschge",
-      "repo": "probable-robot"
-    }
   }
 }

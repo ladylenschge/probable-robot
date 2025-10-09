@@ -18,44 +18,74 @@ export const DailyScheduleManager = () => {
         window.api.getHorses().then(setHorses);
     }, []);
 
+    const formatDate = (isoString: string) =>  {
+        const date = new Date(isoString);
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        return `${day}.${month}.${year}`;
+    }
+
+    const fetchSchedule = (forDate: string) => {
+        window.api.getDailySchedule(forDate).then(setSchedule);
+    };
+
     useEffect(() => {
         if (date) {
-            window.api.getDailySchedule(date).then(setSchedule);
+            fetchSchedule(date);
         }
     }, [date]);
-
-    const formatDate = (isoString: string) =>  {
-            const date = new Date(isoString);
-            const day = String(date.getDate()).padStart(2, '0');
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const year = date.getFullYear();
-            return `${day}.${month}.${year}`;
-    }
 
     const handleAddSlot = async (e: React.FormEvent) => {
         e.preventDefault();
         if (selectedStudents.length === 0 || selectedStudents.length !== selectedHorses.length) {
-            alert('Mindestens eine Person und Pferd auswählen');
+            alert('Please select at least one student and ensure each student has a horse.');
             return;
         }
 
         const newSlot: Omit<IDailyScheduleSlot, 'id'> = {
-            date,
-            time,
+            date, time,
             participants: selectedStudents.map((studentId, index) => ({
-                student_id: studentId,
-                horse_id: selectedHorses[index],
-                student_name: '', // Names are not needed for saving
-                horse_name: '',
+                student_id: studentId, horse_id: selectedHorses[index],
+                student_name: '', horse_name: '',
             })),
         };
 
-        const addedSlot = await window.api.addScheduleSlot(newSlot);
-        setSchedule([...schedule, addedSlot]);
+        await window.api.addScheduleSlot(newSlot);
+        fetchSchedule(date);
+        setSelectedStudents([]); setSelectedHorses([]);
+    };
 
-        // Reset form
-        setSelectedStudents([]);
-        setSelectedHorses([]);
+    const handleDeleteSlot = async (scheduleId: number) => {
+        const userConfirmed = window.confirm('Die komplette Stunde löschen?');
+
+        if (userConfirmed) {
+            await window.api.deleteScheduleSlot(scheduleId);
+            setSchedule(schedule.filter(slot => slot.id !== scheduleId));
+        }
+    };
+
+    const handleDeleteParticipant = async (scheduleId: number, studentId: number) => {
+        const userConfirmed = window.confirm('Den Reiter wirklich von der Stunde entfernen?');
+        if (userConfirmed) {
+            await window.api.deleteScheduleParticipant(scheduleId, studentId);
+
+            const newSchedule = schedule.map(slot => {
+                if (slot.id === scheduleId) {
+                    const updatedParticipants = slot.participants.filter(p => p.student_id !== studentId);
+
+                    if(updatedParticipants.length > 0) {
+                        return { ...slot, participants: updatedParticipants };
+
+                    } else {
+                        handleDeleteSlot(scheduleId);
+                    }
+                }
+                return slot;
+            });
+
+            setSchedule(newSchedule);
+        }
     };
 
     const handlePrint = () => {
@@ -66,7 +96,7 @@ export const DailyScheduleManager = () => {
         <div>
             <div className="toolbar" style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '20px' }}>
                 <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{width: 'auto'}} />
-                <button className="submit-btn" onClick={handlePrint} disabled={schedule.length === 0}>Drucken Reitstunde (PDF)</button>
+                <button className="submit-btn" onClick={handlePrint} disabled={schedule.length === 0}>Drucken Reitstundenliste (PDF)</button>
             </div>
 
             <div className="manager-container">
@@ -86,16 +116,39 @@ export const DailyScheduleManager = () => {
                             {horses.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
                         </select>
 
-                        <button className="submit-btn" type="submit">Zur Stunde hinzufügen</button>
+                        <button className="submit-btn" type="submit">Hinzufügen</button>
                     </form>
                 </div>
                 <div className="list-section">
                     <h2>Stunden für {formatDate(date)}</h2>
                     {schedule.sort((a,b) => a.time.localeCompare(b.time)).map(slot => (
-                        <div key={slot.id} style={{marginBottom: '20px'}}>
+                        <div key={slot.id} style={{
+                            marginBottom: '20px',
+                            padding: '10px',
+                            background: '#f9f9f9',
+                            borderRadius: '4px'
+                        }}>
                             <h3 style={{borderBottom: '1px solid #ccc', paddingBottom: '5px'}}>{slot.time}</h3>
+                            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                                <button
+                                    onClick={() => handleDeleteSlot(slot.id)}
+                                    className="submit-btn"
+                                    style={{background: '#dc3545', padding: '5px 10px', fontSize: '12px'}}
+                                >
+                                    Ganze Stunde löschen
+                                </button>
+                            </div>
                             {slot.participants.map(p => (
-                                <p key={p.student_id} style={{margin: '5px 0'}}><strong>{p.student_name}</strong> - <strong>{p.horse_name}</strong></p>
+                                <div key={p.student_id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '5px 0' }}>
+                                    <p style={{margin: 0}}><strong>{p.student_name}</strong> --- <strong>{p.horse_name}</strong></p>
+                                    <button
+                                        onClick={() => handleDeleteParticipant(slot.id, p.student_id)}
+                                        title={`Entfernen ${p.student_name} von dieser Stunde`}
+                                        style={{ background: 'none', border: 'none', color: '#dc3545', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' }}
+                                    >
+                                        &times;
+                                    </button>
+                                </div>
                             ))}
                         </div>
                     ))}

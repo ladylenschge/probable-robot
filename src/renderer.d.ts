@@ -15,6 +15,8 @@ export interface IElectronAPI {
     // Daily Schedule methods
     getDailySchedule: (date: string) => Promise<IDailyScheduleSlot[]>;
     addScheduleSlot: (slot: Omit<IDailyScheduleSlot, 'id'>) => Promise<IDailyScheduleSlot>;
+    deleteScheduleSlot: (id: number) => Promise<void>;
+    deleteScheduleParticipant: (scheduleId: number, studentId: number) => Promise<void>;
     printDailySchedule: (date: string) => Promise<void>;
     // 10 Cards
     getAvailableReports: () => Promise<IStudentReportInfo[]>;

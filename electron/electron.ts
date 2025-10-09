@@ -55,7 +55,6 @@ function formatDateWithWeekday(dateString: string): string {
 }
 
 async function generateDailySchedulePDF(date: string, groupedSlots: Record<string, IDailyScheduleSlot[]>) {
-    // 1. --- SETUP --- (This part is unchanged)
     const schoolInfoResults = await dbQuery('SELECT * FROM school_info WHERE id = 1');
     const schoolInfo = schoolInfoResults.length > 0 ? schoolInfoResults[0] : null;
     const schoolName = schoolInfo?.school_name || 'Your Riding School';
@@ -66,12 +65,10 @@ async function generateDailySchedulePDF(date: string, groupedSlots: Record<strin
 
     doc.pipe(fs.createWriteStream(filePath));
 
-    // 2. --- PDF HEADER --- (This part is unchanged)
     doc.font('Helvetica-Bold').fontSize(18).text(schoolName, { align: 'center' });
-    doc.font('Helvetica').fontSize(14).text(`Daily Schedule: ${formatDateWithWeekday(date)}`, { align: 'center' });
+    doc.font('Helvetica').fontSize(14).text(`Übersicht Reitzeiten: ${formatDateWithWeekday(date)}`, { align: 'center' });
     doc.moveDown(2);
 
-    // 3. --- TABLE GENERATION LOGIC ---
 
     const tableTop = doc.y;
     const columnStarts = [50, 120, 270, 420];
@@ -81,7 +78,7 @@ async function generateDailySchedulePDF(date: string, groupedSlots: Record<strin
 
     const generateHeader = (y: number) => {
         doc.font('Helvetica-Bold').fontSize(11);
-        const headers = ['Time', 'Group', 'Student', 'Horse'];
+        const headers = ['Uhrzeit', 'Name', 'Pferd'];
         headers.forEach((header, i) => doc.text(header, columnStarts[i], y, { width: columnWidths[i] }));
         doc.moveTo(columnStarts[0] - 10, y + headerHeight - 5)
             .lineTo(columnStarts[3] + columnWidths[3] + 10, y + headerHeight - 5)
@@ -95,7 +92,6 @@ async function generateDailySchedulePDF(date: string, groupedSlots: Record<strin
     if (sortedTimes.length === 0) {
         doc.font('Helvetica').fontSize(14).text('No lessons scheduled for this day.', { align: 'center'});
     } else {
-        // We get the index here to know when we're on the last item.
         sortedTimes.forEach((time, timeIndex) => {
             const lessonsAtThisTime = groupedSlots[time];
 

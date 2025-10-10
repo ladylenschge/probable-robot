@@ -135,7 +135,7 @@ async function generateDailySchedulePDF(date: string, groupedSlots: Record<strin
     }
 
     doc.end();
-    await dialog.showMessageBox({ title: 'Reitstundenliste erstellt', message: `Die Liste für ${date} wurde auf dem Desktop gespeichert.` });
+    await dialog.showMessageBox({ title: 'Reitstundenliste erstellt', message: `Die Liste für ${formatDate(date)} wurde auf dem Desktop gespeichert.` });
     shell.openPath(filePath);
 
 }

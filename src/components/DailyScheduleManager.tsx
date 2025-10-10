@@ -108,12 +108,17 @@ export const DailyScheduleManager = () => {
         const { id, time, isSingleLesson, assignmentRows } = formState;
         const completePairs = assignmentRows.filter(row => row.horse_id !== '');
         if (completePairs.length !== assignmentRows.length || completePairs.length === 0) {
-            alert('Please assign a horse to every rider before submitting.');
+            alert('Bitte ein Pferd zu jedem Reiter zuweisen');
             return;
         }
         const assignedHorseIds = new Set(completePairs.map(p => p.horse_id));
         if (assignedHorseIds.size !== completePairs.length) {
-            alert('Each horse can only be assigned to one rider in a single group.');
+            alert('Ein Pferd kann nur einem Reiter pro Gruppe zugewiesen werden');
+            return;
+        }
+
+        if(completePairs.length > 1 && isSingleLesson){
+            alert('Einzelstunde ausgewählt - nicht mehr als ein Reiter möglich')
             return;
         }
         const slotData = {
@@ -128,7 +133,6 @@ export const DailyScheduleManager = () => {
             await window.api.updateScheduleSlot({ id: id!, ...slotData });
 
             fetchSchedule(date);
-            console.log(schedule)
         } else {
             await window.api.addScheduleSlot(slotData, isSingleLesson);
             fetchSchedule(date);
@@ -137,7 +141,7 @@ export const DailyScheduleManager = () => {
     };
 
     const handleDeleteSlot = async (scheduleId: number) => {
-        const userConfirmed = window.confirm('Are you sure you want to delete this entire schedule slot?');
+        const userConfirmed = window.confirm('Wirklich die ganze Gruppe löschen?');
         if (userConfirmed) {
             await window.api.deleteScheduleSlot(scheduleId);
             setSchedule(schedule.filter(slot => slot.id !== scheduleId));
@@ -145,10 +149,25 @@ export const DailyScheduleManager = () => {
     };
 
     const handleDeleteParticipant = async (scheduleId: number, studentId: number) => {
-        const userConfirmed = window.confirm('Are you sure you want to remove this rider from the lesson?');
+        const userConfirmed = window.confirm('Den Reiter wirklich von der Stunde entfernen?');
         if (userConfirmed) {
             await window.api.deleteScheduleParticipant(scheduleId, studentId);
-            fetchSchedule(date); // Re-fetch the whole schedule for simplicity
+
+            const newSchedule = schedule.map(slot => {
+                if (slot.id === scheduleId) {
+                    const updatedParticipants = slot.participants.filter(p => p.student_id !== studentId);
+
+                    if(updatedParticipants.length > 0) {
+                        return { ...slot, participants: updatedParticipants };
+
+                    } else {
+                        handleDeleteSlot(scheduleId);
+                    }
+                }
+                return slot;
+            });
+
+            setSchedule(newSchedule);
         }
     };
 

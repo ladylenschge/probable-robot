@@ -20,9 +20,8 @@ function App() {
             case 'schedule': return <DailyScheduleManager />; // 3. Add the case for the new component
             case 'students': return <StudentManager />;
             case 'horses': return <HorseManager />;
-            case 'lessons':
             default:
-                return <LessonManager />;
+                return <DailyScheduleManager />;
         }
     };
 
@@ -31,7 +30,6 @@ function App() {
             <h1>Reitstunden Manager</h1>
             <nav>
                 <button onClick={() => setActiveTab('schedule')} className={activeTab === 'schedule' ? 'active' : ''}>tägliche Reitstunden</button>
-                <button onClick={() => setActiveTab('lessons')} className={activeTab === 'lessons' ? 'active' : ''}>Stunden History</button>
                 <button onClick={() => setActiveTab('students')} className={activeTab === 'students' ? 'active' : ''}>Mitglieder</button>
                 <button onClick={() => setActiveTab('horses')} className={activeTab === 'horses' ? 'active' : ''}>Pferde</button>
                 <button onClick={() => setActiveTab('reports')} className={activeTab === 'reports' ? 'active' : ''}>10er Karten</button>

@@ -15,13 +15,16 @@ const api = {
 
     // Lesson History methods
     getLessons: (): Promise<ILesson[]> => ipcRenderer.invoke('get-lessons'),
-    addLesson: (lesson: Omit<ILesson, 'id' | 'student_name' | 'horse_name'>): Promise<ILesson> => ipcRenderer.invoke('add-lesson', lesson),
+    addLesson: (lesson: Omit<ILesson, 'id' | 'student_name' | 'horse_name' | 'singleLesson'>): Promise<ILesson> => ipcRenderer.invoke('add-lesson', lesson),
 
     // Daily Schedule methods
     getDailySchedule: (date: string): Promise<IDailyScheduleSlot[]> => ipcRenderer.invoke('get-daily-schedule', date),
-    addScheduleSlot: (slot: Omit<IDailyScheduleSlot, 'id'>): Promise<IDailyScheduleSlot> => ipcRenderer.invoke('add-schedule-slot', slot),
+    addScheduleSlot: (slot: Omit<IDailyScheduleSlot, 'id'>,  is_single_lesson: boolean): Promise<IDailyScheduleSlot> => ipcRenderer.invoke('add-schedule-slot', slot,  is_single_lesson),
     deleteScheduleSlot: (scheduleId: number): Promise<void> => ipcRenderer.invoke('delete-schedule-slot', scheduleId),
     deleteScheduleParticipant: (scheduleId: number, studentId: number): Promise<void> => ipcRenderer.invoke('delete-schedule-participant', scheduleId, studentId),
+    updateScheduleSlot: (slot: IDailyScheduleSlot): Promise<IDailyScheduleSlot> => ipcRenderer.invoke('update-schedule-slot', slot),
+
+
     printDailySchedule: (date: string): Promise<void> => ipcRenderer.invoke('print-daily-schedule', date),
 
     getAvailableReports: () => ipcRenderer.invoke('get-available-reports'),

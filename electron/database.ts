@@ -32,6 +32,7 @@ db.exec(`
         horse_id INTEGER NOT NULL,
         date TEXT NOT NULL,
         notes TEXT,
+        is_single_lesson INTEGER NOT NULL DEFAULT 0, 
         FOREIGN KEY (student_id) REFERENCES students(id),
         FOREIGN KEY (horse_id) REFERENCES horses(id)
     );

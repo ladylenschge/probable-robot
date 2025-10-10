@@ -195,33 +195,32 @@ export const DailyScheduleManager = () => {
                 <div className="form-section">
                     <h2>{isEditing ? `Bearbeiten der Stunde von ${formState.time}` : 'Hinzufügen Stunde'}</h2>
                     <form onSubmit={handleSubmit}>
-                        <div style={{display: 'flex', gap: '20px', alignItems: 'center'}}>
-                            <div style={{flex: 1}}>
-                                <label>Time</label>
-                                <input type="time" value={formState.time} onChange={e => setFormState({...formState, time: e.target.value})} required />
-                            </div>
+                        <div style={{display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline'}}>
+                                <input type="time" value={formState.time} style={{width: "auto"}}
+                                       onChange={e => setFormState({...formState, time: e.target.value})} required/>
+                                <div style={{display: 'flex', flexDirection: 'row', alignItems: 'baseline'}}>
+                                    <label htmlFor="isSingleLesson">Einzelstunde?</label>
+                                    <input type="checkbox" id="isSingleLesson" checked={formState.isSingleLesson}
+                                           onChange={e => setFormState({
+                                               ...formState,
+                                               isSingleLesson: e.target.checked
+                                           })}/>
+                                </div>
                         </div>
 
-                        <div style={{ margin: '15px 0' }}>
-                            <div style={{ display: 'flex', alignItems: 'center' }}>
-                                <input type="checkbox" id="isSingleLesson" checked={formState.isSingleLesson} onChange={e => setFormState({...formState, isSingleLesson: e.target.checked})} />
-                                <label htmlFor="isSingleLesson" style={{ marginBottom: 0, marginLeft: '10px' }}>Einzelstunde?</label>
-                            </div>
-                        </div>
-
-                        <hr />
+                        <hr/>
 
                         <h4>Reiter in der Gruppe ({formState.assignmentRows.length})</h4>
                         {formState.assignmentRows.length === 0 && <p style={{color: '#6c757d'}}>Reiter aus der Liste (rechts) hinzufügen.</p>}
                         {formState.assignmentRows.map((row, index) => (
-                            <div key={row.student.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '10px', alignItems: 'center', marginBottom: '10px' }}>
+                            <div key={row.student.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '10px', alignItems: 'baseline' }}>
                                 <span style={{fontWeight: 'bold', padding: '8px', background: '#e9ecef', borderRadius: '4px'}}>{row.student.name}</span>
                                 <select value={row.horse_id} onChange={e => handleHorseChange(index, e.target.value)} required>
                                     <option value="">-- Pferd zuweisen --</option>
                                     {row.horse_id && <option value={row.horse_id}>{allHorses.find(h => h.id === row.horse_id)?.name}</option>}
                                     {availableHorsesForDropdown.filter(h => !assignedHorseIdsInForm.has(h.id)).map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
                                 </select>
-                                <button type="button" onClick={() => handleRemoveRiderFromGroup(row.student.id)} style={{background: '#dc3545', color: 'white', border: 'none', borderRadius: '50%', width: '30px', height: '30px', cursor: 'pointer'}}>&times;</button>
+                                <button type="button" onClick={() => handleRemoveRiderFromGroup(row.student.id)} style={{background: '#dc3545', color: 'white', border: 'none', borderRadius: '50%', width: '30px', height: '30px', cursor: 'pointer', fontSize: '25px', textAlign: 'center'}}>&times;</button>
                             </div>
                         ))}
 

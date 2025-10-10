@@ -1,10 +1,10 @@
-import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
+import {app, BrowserWindow, dialog, ipcMain, shell} from 'electron';
 import path from 'path';
 import fs from 'fs';
 import PDFDocument from 'pdfkit';
-import { dbQuery, dbRun } from './database';
-import {IStudent, IHorse, ILesson, IDailyScheduleSlot, LessonDays, IStudentReportInfo, ISchoolInfo} from './types';
-import { autoUpdater } from 'electron-updater';
+import {dbQuery, dbRun} from './database';
+import {IDailyScheduleSlot, IHorse, ILesson, ISchoolInfo, IStudent, IStudentReportInfo, LessonDays} from './types';
+import {autoUpdater} from 'electron-updater';
 
 
 function initializeAutoUpdater() {
@@ -38,7 +38,7 @@ function initializeAutoUpdater() {
     });
 }
 
-function formatDate(isoString: string)  {
+ function formatDate(isoString: string)  {
     const date = new Date(isoString);
     const day = String(date.getDate()).padStart(2, '0');
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -209,7 +209,7 @@ ipcMain.handle('add-horse', async (e, name: string, breed: string): Promise<IHor
 // Lessons
 ipcMain.handle('get-lessons', async (): Promise<ILesson[]> => {
     const query = `
-        SELECT l.id, l.date, l.notes, l.student_id, l.horse_id, s.name as student_name, h.name as horse_name
+        SELECT l.id, l.date, l.notes, l.student_id, l.horse_id, l. is_single_lesson, s.name as student_name, h.name as horse_name
         FROM lessons l
         JOIN students s ON l.student_id = s.id
         JOIN horses h ON l.horse_id = h.id
@@ -219,8 +219,11 @@ ipcMain.handle('get-lessons', async (): Promise<ILesson[]> => {
 });
 
 ipcMain.handle('add-lesson', async (e, lesson: Omit<ILesson, 'id' | 'student_name' | 'horse_name'>): Promise<ILesson> => {
-    const { student_id, horse_id, date, notes } = lesson;
-    const result = dbRun('INSERT INTO lessons (student_id, horse_id, date, notes) VALUES (?, ?, ?, ?)', [student_id, horse_id, date, notes]);
+    const { student_id, horse_id, date, notes,  is_single_lesson  } = lesson;
+
+    const isSingleLessonAsNumber = is_single_lesson ? 1 : 0;
+
+    const result = dbRun('INSERT INTO lessons (student_id, horse_id, date, notes,  is_single_lesson) VALUES (?, ?, ?, ?, ?)', [student_id, horse_id, date, notes,  isSingleLessonAsNumber]);
 
     const newLesson: ILesson[] = dbQuery('SELECT l.id, l.date, l.notes, l.student_id, l.horse_id, s.name as student_name, h.name as horse_name FROM lessons l JOIN students s ON l.student_id = s.id JOIN horses h ON l.horse_id = h.id WHERE l.id = ?', [result.lastInsertRowid]);
     return newLesson[0];
@@ -247,7 +250,7 @@ ipcMain.handle('print-daily-schedule', async (e, date: string) => {
 });
 
 
-ipcMain.handle('add-schedule-slot', async (e, slot: Omit<IDailyScheduleSlot, 'id'>): Promise<IDailyScheduleSlot> => {
+ipcMain.handle('add-schedule-slot', async (e, slot: Omit<IDailyScheduleSlot, 'id'>, is_single_lesson: boolean): Promise<IDailyScheduleSlot> => {
     dbRun('BEGIN TRANSACTION');
     try {
         const scheduleResult = dbRun('INSERT INTO daily_schedules (date, time) VALUES (?, ?)', [slot.date, slot.time]);
@@ -255,20 +258,18 @@ ipcMain.handle('add-schedule-slot', async (e, slot: Omit<IDailyScheduleSlot, 'id
 
         for (const p of slot.participants) {
             dbRun('INSERT INTO schedule_participants (schedule_id, student_id, horse_id) VALUES (?, ?, ?)', [scheduleId, p.student_id, p.horse_id]);
-            const countResultBefore = dbQuery('SELECT COUNT(*) as count FROM lessons WHERE student_id = ?', [p.student_id]);
+            const countResultBefore = dbQuery('SELECT COUNT(*) as count FROM lessons WHERE student_id = ? AND  is_single_lesson = 0', [p.student_id]);
             const countBefore = countResultBefore[0]?.count || 0;
 
             dbRun(
-                'INSERT INTO lessons (student_id, horse_id, date, notes) VALUES (?, ?, ?, ?)',
-                [p.student_id, p.horse_id, slot.date, '']
+                'INSERT INTO lessons (student_id, horse_id, date, notes, is_single_lesson) VALUES (?, ?, ?, ?, ?)',
+                [p.student_id, p.horse_id, slot.date, '', is_single_lesson ? 1 : 0]
             );
 
-            const countAfter = countBefore + 1;
-            const milestonesBefore = Math.floor(countBefore / 10);
-            const milestonesAfter = Math.floor(countAfter / 10);
-
-            if (milestonesAfter > milestonesBefore) {
-                console.log(`MILESTONE CROSSED (from group lesson): Student ${p.student_id} reached ${countAfter} lessons.`);
+            if (!is_single_lesson) {
+                const countAfter = countBefore + 1;
+                const milestonesBefore = Math.floor(countBefore / 10);
+                const milestonesAfter = Math.floor(countAfter / 10);
             }
         }
 
@@ -396,8 +397,8 @@ async function generateStudentReportPDF(studentId: number, milestone: number) {
 ipcMain.handle('get-available-reports', async (): Promise<IStudentReportInfo[]> => {
     const query = `
         SELECT l.student_id, s.name as student_name, COUNT(l.id) as total_lessons
-        FROM lessons l
-                 JOIN students s ON l.student_id = s.id
+        FROM lessons l JOIN students s ON l.student_id = s.id
+        WHERE l.is_single_lesson = 0
         GROUP BY l.student_id
         ORDER BY s.name
     `;
@@ -453,6 +454,36 @@ ipcMain.handle('update-school-info', async (e, info: ISchoolInfo) => {
             price_10_card_nonMembers = excluded.price_10_card_nonMembers;
     `;
     dbRun(query, [school_name, street_address, zip_code, phone_number, fax, bank_name, iban, blz, price_10_card_members, price_10_card_nonMembers]);
+});
+
+ipcMain.handle('update-schedule-slot', async (e, slot: IDailyScheduleSlot) => {
+    dbRun('BEGIN TRANSACTION');
+    try {
+        dbRun('UPDATE daily_schedules SET date = ?, time = ? WHERE id = ?',
+            [slot.date, slot.time, slot.id]
+        );
+        // Delete all old participants for this slot
+        dbRun('DELETE FROM schedule_participants WHERE schedule_id = ?',[slot.id]);
+        // Insert the new list of participants
+        for (const p of slot.participants) {
+            dbRun('INSERT INTO schedule_participants (schedule_id, student_id, horse_id) VALUES (?, ?, ?)',
+                [slot.id, p.student_id, p.horse_id]
+            );
+        }
+        dbRun('COMMIT');
+
+        const allSlotsForDate = await fetchFullSchedule(slot.date);
+
+        const updatedSlot = allSlotsForDate.find(s => s.id === slot.id);
+
+        if (!updatedSlot) {
+            throw new Error("Could not find the updated slot after database transaction.");
+        }
+        return updatedSlot;
+    } catch (err) {
+        dbRun('ROLLBACK');
+        throw err;
+    }
 });
 
 // App Lifecycle

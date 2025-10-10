@@ -21,6 +21,8 @@ export const LessonManager = () => {
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [notes, setNotes] = useState('');
 
+    const [is_single_lesson, setIsSingleLesson] = useState(false);
+
     // Initial data fetch
     useEffect(() => {
         window.api.getLessons().then(setAllLessons);
@@ -45,7 +47,7 @@ export const LessonManager = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if(!studentId || !horseId) return;
-        const lessonData = { student_id: +studentId, horse_id: +horseId, date, notes };
+        const lessonData = { student_id: +studentId, horse_id: +horseId, date, notes, is_single_lesson };
         const newLesson = await window.api.addLesson(lessonData);
         // Add the new lesson to the main list. The filter effect will handle the display.
         setAllLessons([newLesson, ...allLessons]);

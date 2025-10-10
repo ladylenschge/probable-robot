@@ -17,7 +17,7 @@ export interface ILesson {
     horse_id: number;
     date: string;
     notes: string;
-    // These fields are for display, joined from other tables
+    is_single_lesson: boolean;
     student_name?: string;
     horse_name?: string;
 }

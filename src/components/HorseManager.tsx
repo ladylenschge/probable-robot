@@ -18,7 +18,7 @@ export const HorseManager = () => {
     return (
         <div className="manager-container">
             <div className="form-section">
-                <h2>Pferd hinzufügen // hier noch löschen machen</h2>
+                <h2>Pferd hinzufügen // hier noch löschen machen 123</h2>
                 <form onSubmit={handleSubmit}>
                     <input value={name} onChange={e => setName(e.target.value)} placeholder="Name" required />
                     <button className="submit-btn" type="submit">Pferd hinzufügen</button>

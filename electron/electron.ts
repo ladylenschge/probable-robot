@@ -9,6 +9,9 @@ import {autoUpdater} from 'electron-updater';
 
 function initializeAutoUpdater() {
     // This will immediately check for updates and then every hour thereafter.
+        const updater = autoUpdater;
+        updater.channel = 'latest';
+
     autoUpdater.checkForUpdatesAndNotify();
 
     autoUpdater.on('update-available', (_info) => {
@@ -19,7 +22,10 @@ function initializeAutoUpdater() {
         });
     });
 
+    console.log('update download next:')
+
     autoUpdater.on('update-downloaded', (_info) => {
+        console.log('update download')
         dialog.showMessageBox({
             type: 'info',
             title: 'Update Ready to Install',

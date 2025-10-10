@@ -1,6 +1,6 @@
 {
   "name": "riding-school-manager",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "private": true,
   "description": "A desktop application to manage a riding school.",
   "author": "ladylenschge",
@@ -41,6 +41,19 @@
     "extraMetadata": {
       "main": "build-electron/electron.js"
     },
+
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Riding School Manager"
+    },
+
     "files": [
       "build/**/*",
       "build-electron/**/*",

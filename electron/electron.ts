@@ -456,7 +456,6 @@ ipcMain.handle('update-school-info', async (e, info: ISchoolInfo) => {
 });
 
 ipcMain.handle('update-schedule-slot', async (e, slot: IDailyScheduleSlot) => {
-    console.log('Backend: Updating slot with ID:', slot.id); // For debugging
     dbRun('BEGIN TRANSACTION');
     try {
         // Step 1: Update the main slot information (time, group name).
@@ -479,7 +478,6 @@ ipcMain.handle('update-schedule-slot', async (e, slot: IDailyScheduleSlot) => {
 
         // Step 4: Commit all the changes.
         dbRun('COMMIT');
-        console.log('Backend: Update transaction committed successfully for slot ID:', slot.id);
 
         // Step 5: Re-fetch the fully populated data to return to the frontend.
         const allSlotsForDate = await fetchFullSchedule(slot.date);

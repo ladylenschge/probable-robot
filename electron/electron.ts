@@ -313,7 +313,6 @@ async function generateStudentReportPDF(studentId: number, milestone: number) {
     const streetAddress = schoolInfo?.street_address || '';
     const zipCode = schoolInfo?.zip_code || '';
     const phoneNumber = schoolInfo?.phone_number || '';
-    const fax = schoolInfo?.fax || '';
     let price = schoolInfo?.price_10_card_nonMembers || 100;
     const bankName = schoolInfo?.bank_name || '';
     const iban = schoolInfo?.iban || '';
@@ -348,9 +347,7 @@ async function generateStudentReportPDF(studentId: number, milestone: number) {
 
     // 3. Build PDF Content
     doc.font('Helvetica-Bold').fontSize(20).text(`${schoolName}`, { align: 'center' });
-    doc.fontSize(7).text(`${streetAddress} ${zipCode} - Tel.: ${phoneNumber} Faxnr.: ${fax}`, { align: 'center' });
-    doc.moveDown(0.5)
-    doc.fontSize(7).text(`Bankverb.: ${bankName} - BLZ: ${blz} - IBAN: ${iban}`, { align: 'center' });
+    doc.fontSize(7).text(`${streetAddress} ${zipCode} - Tel.: ${phoneNumber}`, { align: 'center' });
     doc.moveDown(0.5)
     // doc.moveTo(100, 200).lineTo(500, 200).stroke();
     doc.fontSize(12).text(`Reitkarte`, { align: 'center' });
@@ -392,6 +389,9 @@ async function generateStudentReportPDF(studentId: number, milestone: number) {
     doc.moveDown(0.5);
     doc.fontSize(7).text('Zur Information:: Der o.g Betrag setzt sich zusammen aus dem Honorar für Trainer und Unfall/Haftpflichtversicherung (Verein) einerseits, sowie Gebür für das gemietete Pferd (Fam. Schmid) andererseits.', 20, doc.y, { align: 'left' });
 
+    doc.moveDown(2)
+    doc.moveTo(30, currentRowY - 5).lineTo(lineWidth, currentRowY - 5).strokeColor('#eeeeee').stroke();
+    doc.fontSize(7).text(`Bankverb.: ${bankName} - BLZ: ${blz} - IBAN: ${iban}`, { align: 'center' });
     doc.end();
     await dialog.showMessageBox({ title: 'Karte erstellt', message: `Karte für ${studentName} wurde auf dem Desktop gespeichert` });
     shell.openPath(filePath);
@@ -402,38 +402,76 @@ async function generateStudentReportPDF(studentId: number, milestone: number) {
 ipcMain.handle('get-available-reports', async (): Promise<IStudentReportInfo[]> => {
     const query = `
         SELECT l.student_id, s.name as student_name, COUNT(l.id) as total_lessons
-        FROM lessons l
-                 JOIN students s ON l.student_id = s.id
+        FROM lessons l JOIN students s ON l.student_id = s.id
+        WHERE l.is_single_lesson = 0
         GROUP BY l.student_id
         ORDER BY s.name
     `;
-    const results = dbQuery(query);
+    const studentTotals = dbQuery(query);
 
-    return results.map(student => {
-        // Calculate completed milestones (e.g., 10, 20, 30...)
-        const milestones: number[] = [];
-        for (let i = 10; i <= student.total_lessons; i += 10) {
-            milestones.push(i);
+    const printedLogs = dbQuery('SELECT student_id, milestone FROM printed_reports_log');
+
+    return studentTotals.map(student => {
+        const milestones: { milestone: number; is_printed: boolean; }[] = [];
+
+        // --- NEW "Show Latest Two" LOGIC ---
+
+        if (student.total_lessons >= 10) {
+            // 1. Calculate the highest milestone the student has achieved.
+            // e.g., if total_lessons is 27, highestMilestone = 20.
+            const highestMilestone = Math.floor(student.total_lessons / 10) * 10;
+
+            // 2. Check if this highest milestone has already been printed.
+            const isHighestMilestonePrinted = printedLogs.some(
+                log => log.student_id === student.student_id && log.milestone === highestMilestone
+            );
+
+            // 3. Add the highest milestone to the list.
+            milestones.push({
+                milestone: highestMilestone,
+                is_printed: isHighestMilestonePrinted
+            });
+
+            // 4. If the highest milestone exists and is greater than 10,
+            //    check for the one before it.
+            if (highestMilestone > 10) {
+                const previousMilestone = highestMilestone - 10;
+
+                const isPreviousMilestonePrinted = printedLogs.some(
+                    log => log.student_id === student.student_id && log.milestone === previousMilestone
+                );
+
+                if (isPreviousMilestonePrinted) {
+                    milestones.push({
+                        milestone: previousMilestone,
+                        is_printed: true
+                    });
+                }
+            }
         }
 
-        // --- NEW LOGIC ---
-        // Calculate progress towards the next milestone using the modulo operator.
-        // e.g., 27 lessons % 10 = 7 lessons of progress.
         const progress = student.total_lessons % 10;
-
         return {
             student_id: student.student_id,
             student_name: student.student_name,
             total_lessons: student.total_lessons,
-            available_milestones: milestones,
-            progress_towards_next: progress // Add the new value to the result
+            available_milestones: milestones.sort((a, b) => b.milestone - a.milestone),
+            progress_towards_next: progress
         };
     });
 });
 
 ipcMain.handle('print-student-report', async (e, studentId: number, milestone: number) => {
+    // First, generate the PDF as before.
     await generateStudentReportPDF(studentId, milestone);
-});
+
+    const currentDate = new Date().toISOString();
+    dbRun(
+        'INSERT OR IGNORE INTO printed_reports_log (student_id, milestone, date_printed) VALUES (?, ?, ?)',
+        [studentId, milestone, currentDate]
+    );});
+
+
 
 
 ipcMain.handle('get-school-info', async (): Promise<ISchoolInfo | null> => {
@@ -444,21 +482,20 @@ ipcMain.handle('get-school-info', async (): Promise<ISchoolInfo | null> => {
 ipcMain.handle('update-school-info', async (e, info: ISchoolInfo) => {
     const { school_name, street_address, zip_code, phone_number, fax, bank_name, iban, blz,price_10_card_members, price_10_card_nonMembers } = info;
     const query = `
-        INSERT INTO school_info (id, school_name, street_address, zip_code, phone_number, fax, bank_name, iban, blz, price_10_card_members, price_10_card_nonMembers)
-        VALUES (1, ?, ?, ?, ?, ?, ?, ?,?, ?, ?)
+        INSERT INTO school_info (id, school_name, street_address, zip_code, phone_number, bank_name, iban, blz, price_10_card_members, price_10_card_nonMembers)
+        VALUES (1, ?, ?, ?, ?, ?, ?, ?,?, ?)
         ON CONFLICT(id) DO UPDATE SET
             school_name = excluded.school_name,
             street_address = excluded.street_address,
             zip_code = excluded.zip_code,
             phone_number = excluded.phone_number,
-            fax = excluded.fax,
             bank_name = excluded.bank_name,
             iban = excluded.iban,
             blz = excluded.blz,
             price_10_card_members = excluded.price_10_card_members,
             price_10_card_nonMembers = excluded.price_10_card_nonMembers;
     `;
-    dbRun(query, [school_name, street_address, zip_code, phone_number, fax, bank_name, iban, blz, price_10_card_members, price_10_card_nonMembers]);
+    dbRun(query, [school_name, street_address, zip_code, phone_number, bank_name, iban, blz, price_10_card_members, price_10_card_nonMembers]);
 });
 
 ipcMain.handle('update-schedule-slot', async (e, slot: IDailyScheduleSlot) => {

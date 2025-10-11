@@ -43,7 +43,6 @@ db.exec(`
         street_address TEXT,
         zip_code TEXT,
         phone_number TEXT,
-        fax TEXT,
         price_10_card_members REAL DEFAULT 0,
         price_10_card_nonMembers REAL DEFAULT 0,
         bank_name TEXT,
@@ -66,6 +65,13 @@ db.exec(`
         FOREIGN KEY (student_id) REFERENCES students(id),
         FOREIGN KEY (horse_id) REFERENCES horses(id),
         PRIMARY KEY (schedule_id, student_id)
+    );
+    
+        CREATE TABLE IF NOT EXISTS printed_reports_log (
+        student_id INTEGER NOT NULL,
+        milestone INTEGER NOT NULL,
+        date_printed TEXT NOT NULL,
+        PRIMARY KEY (student_id, milestone)
     );
 `);
 

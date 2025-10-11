@@ -211,6 +211,7 @@ export const HorseManager = () => {
                                     <button
                                         onClick={() => handleEditClick(h)}
                                         style={{padding: '5px 10px'}}
+                                        className="submit-btn"
                                     >
                                         Bearbeiten
                                     </button>
@@ -222,8 +223,9 @@ export const HorseManager = () => {
                                             color: 'white',
                                             border: 'none'
                                         }}
+                                        className="del-btn"
                                     >
-                                        Löschen
+                                        &times;
 
                                     </button>
                                 </div>

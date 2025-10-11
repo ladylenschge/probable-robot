@@ -164,7 +164,7 @@ export const HorseManager = () => {
             )}
 
             <div className="form-section">
-                <h2>{isEditing ? 'Edit Horse' : 'Add Horse'}</h2>
+                <h2>{isEditing ? 'Bearbeiten Pferd' : 'Pferd hinzufügen'}</h2>
                 <form onSubmit={handleSubmit}>
                     <label>Name</label>
                     <input
@@ -194,7 +194,7 @@ export const HorseManager = () => {
                 </form>
             </div>
             <div className="list-section">
-                <h2>Horse List</h2>
+                <h2>Alle Pferde</h2>
                 <table>
                     <thead>
                     <tr>

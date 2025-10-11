@@ -30,7 +30,6 @@ export const StudentManager = () => {
 
     const handleDeleteClick = async (student: IStudent) => {
         let res = await window.api.deleteStudent(student.id);
-        console.log(res)
         if(res[0]){
             alert(res[1]);
             setStudents(students.filter(s => s.id !== student.id));

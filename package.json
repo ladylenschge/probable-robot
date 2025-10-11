@@ -12,15 +12,18 @@
     "build": "react-scripts build",
     "tsc:electron": "tsc --project electron/tsconfig.json",
     "electron:dev": "npm run tsc:electron && concurrently \"npm start\" \"wait-on http-get://localhost:3000 && electron .\"",
-    "electron:build": "npm run build && npm run tsc:electron && electron-builder"
+    "electron:build": "npm run build && npm run tsc:electron && electron-builder",
+    "electron:publish": "npm run build && npm run tsc:electron && electron-builder --publish always"
   },
   "dependencies": {
     "better-sqlite3": "^9.4.3",
+    "electron-log": "^5.4.3",
     "electron-updater": "^6.1.7",
     "pdfkit": "^0.14.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-scripts": "5.0.1"
+    "react-scripts": "5.0.1",
+    "web-vitals": "^5.1.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.9",
@@ -41,7 +44,6 @@
     "extraMetadata": {
       "main": "build-electron/electron.js"
     },
-
     "nsis": {
       "oneClick": false,
       "perMachine": true,
@@ -53,7 +55,6 @@
       "createStartMenuShortcut": true,
       "shortcutName": "Reitstunden Manager"
     },
-
     "files": [
       "build/**/*",
       "build-electron/**/*",

@@ -5,42 +5,99 @@ import PDFDocument from 'pdfkit';
 import {dbQuery, dbRun} from './database';
 import {IDailyScheduleSlot, IHorse, ILesson, ISchoolInfo, IStudent, IStudentReportInfo, LessonDays} from './types';
 import {autoUpdater} from 'electron-updater';
+import log from 'electron-log';
 
+export function initializeAutoUpdater(): void {
+    // Nur in Production Mode ausführen
+    if (!app.isPackaged) {
+        log.info('Development mode - Auto-Updater deaktiviert');
+        return;
+    }
 
-function initializeAutoUpdater() {
-    // This will immediately check for updates and then every hour thereafter.
-        const updater = autoUpdater;
-        updater.channel = 'latest';
+    // Logging konfigurieren
+    log.transports.file.level = 'info';
+    autoUpdater.logger = log;
 
-    autoUpdater.checkForUpdatesAndNotify();
+    // Konfiguration
+    autoUpdater.autoDownload = false; // Erst nach Bestätigung herunterladen
+    autoUpdater.autoInstallOnAppQuit = true;
 
-    autoUpdater.on('update-available', (_info) => {
-        dialog.showMessageBox({
-            type: 'info',
-            title: 'Update Available',
-            message: 'Eine neue Version ist verfügbar und wird im Hintergrund heruntergeladen'
-        });
+    log.info('Auto-Updater initialisiert. Aktuelle Version:', app.getVersion());
+
+    // Prüfe beim Start auf Updates (mit Verzögerung)
+    setTimeout(() => {
+        autoUpdater.checkForUpdates();
+    }, 3000);
+
+    // Optional: Stündlich auf Updates prüfen
+    setInterval(() => {
+        autoUpdater.checkForUpdates();
+    }, 60 * 60 * 1000);
+
+    // Event: Update wird gesucht
+    autoUpdater.on('checking-for-update', () => {
+        log.info('Suche nach Updates...');
     });
 
-    console.log('update download next:')
-
-    autoUpdater.on('update-downloaded', (_info) => {
-        console.log('update download')
+    // Event: Update verfügbar
+    autoUpdater.on('update-available', (info) => {
+        log.info('Update verfügbar:', info.version);
         dialog.showMessageBox({
             type: 'info',
-            title: 'Update Ready to Install',
-            message: 'The update has been downloaded. Restart the application to apply the changes.',
-            buttons: ['Restart Now', 'Later']
-        }).then((buttonIndex) => {
-            // The user clicked "Restart Now"
-            if (buttonIndex.response === 0) {
-                autoUpdater.quitAndInstall();
+            title: 'Update verfügbar',
+            message: `Eine neue Version ${info.version} ist verfügbar!\n\nAktuelle Version: ${app.getVersion()}\nNeue Version: ${info.version}\n\nMöchten Sie das Update jetzt herunterladen?`,
+            buttons: ['Ja, herunterladen', 'Später'],
+            defaultId: 0,
+            cancelId: 1
+        }).then((result) => {
+            if (result.response === 0) {
+                log.info('Benutzer hat Update-Download bestätigt');
+                autoUpdater.downloadUpdate();
+            } else {
+                log.info('Benutzer hat Update verschoben');
             }
         });
     });
 
+    // Event: Kein Update verfügbar
+    autoUpdater.on('update-not-available', (info) => {
+        log.info('Keine Updates verfügbar. Aktuelle Version ist aktuell:', info.version);
+    });
+
+    // Event: Download-Fortschritt
+    autoUpdater.on('download-progress', (progressObj) => {
+        const message = `Download: ${progressObj.percent.toFixed(2)}% (${Math.round(progressObj.bytesPerSecond / 1024)} KB/s)`;
+        log.info(message);
+    });
+
+    // Event: Update heruntergeladen
+    autoUpdater.on('update-downloaded', (info) => {
+        log.info('Update heruntergeladen:', info.version);
+        dialog.showMessageBox({
+            type: 'info',
+            title: 'Update bereit zur Installation',
+            message: `Version ${info.version} wurde erfolgreich heruntergeladen.\n\nDie Anwendung muss neu gestartet werden, um das Update zu installieren.`,
+            buttons: ['Jetzt neu starten', 'Beim nächsten Start'],
+            defaultId: 0,
+            cancelId: 1
+        }).then((result) => {
+            if (result.response === 0) {
+                log.info('Benutzer startet Neustart für Update');
+                // false = nicht leise, true = sofort neu starten
+                autoUpdater.quitAndInstall(false, true);
+            } else {
+                log.info('Update wird beim nächsten Start installiert');
+            }
+        });
+    });
+
+    // Event: Fehler
     autoUpdater.on('error', (err) => {
-        console.error('Error in auto-updater. ' + err);
+        log.error('Fehler im Auto-Updater:', err);
+        dialog.showErrorBox(
+            'Update-Fehler',
+            `Beim Suchen oder Installieren des Updates ist ein Fehler aufgetreten:\n\n${err.message}`
+        );
     });
 }
 
@@ -574,9 +631,8 @@ ipcMain.handle('update-schedule-slot', async (e, slot: IDailyScheduleSlot) => {
 app.whenReady().then(() => {
     createWindow();
 
-    if (app.isPackaged) {
         initializeAutoUpdater();
-    }
+
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {

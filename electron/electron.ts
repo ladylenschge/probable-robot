@@ -63,7 +63,7 @@ function formatDateWithWeekday(dateString: string): string {
 async function generateDailySchedulePDF(date: string, groupedSlots: Record<string, IDailyScheduleSlot[]>) {
     const schoolInfoResults = dbQuery('SELECT * FROM school_info WHERE id = 1');
     const schoolInfo = schoolInfoResults.length > 0 ? schoolInfoResults[0] : null;
-    const schoolName = schoolInfo?.school_name || 'Your Riding School';
+    const schoolName = 'Pferdefreunde Garnzell';
 
     const desktopPath = app.getPath('desktop');
     const filePath = path.join(desktopPath, `Daily-Schedule-${date}.pdf`);

@@ -390,8 +390,24 @@ async function generateStudentReportPDF(studentId: number, milestone: number) {
     doc.fontSize(7).text('Zur Information:: Der o.g Betrag setzt sich zusammen aus dem Honorar für Trainer und Unfall/Haftpflichtversicherung (Verein) einerseits, sowie Gebür für das gemietete Pferd (Fam. Schmid) andererseits.', 20, doc.y, { align: 'left' });
 
     doc.moveDown(2)
-    doc.moveTo(30, currentRowY - 5).lineTo(lineWidth, currentRowY - 5).strokeColor('#eeeeee').stroke();
-    doc.fontSize(7).text(`Bankverb.: ${bankName} - BLZ: ${blz} - IBAN: ${iban}`, { align: 'center' });
+    const footerY = doc.page.height - doc.page.margins.bottom - 20;
+    const bankInfoLine = [
+        bankName ? `Bank: ${bankName}` : null,
+        iban ? `IBAN: ${iban}` : null,
+        blz ? `BLZ: ${blz}` : null
+    ].filter(Boolean).join(' | ');
+
+    if (bankInfoLine) {
+        doc.font('Helvetica').fontSize(8).text(
+            bankInfoLine,
+            doc.page.margins.left,
+            footerY,
+            {
+                align: 'center',
+                width: doc.page.width - doc.page.margins.left - doc.page.margins.right
+            }
+        );
+    }
     doc.end();
     await dialog.showMessageBox({ title: 'Karte erstellt', message: `Karte für ${studentName} wurde auf dem Desktop gespeichert` });
     shell.openPath(filePath);
@@ -413,27 +429,18 @@ ipcMain.handle('get-available-reports', async (): Promise<IStudentReportInfo[]> 
 
     return studentTotals.map(student => {
         const milestones: { milestone: number; is_printed: boolean; }[] = [];
-
-        // --- NEW "Show Latest Two" LOGIC ---
-
         if (student.total_lessons >= 10) {
-            // 1. Calculate the highest milestone the student has achieved.
-            // e.g., if total_lessons is 27, highestMilestone = 20.
             const highestMilestone = Math.floor(student.total_lessons / 10) * 10;
 
-            // 2. Check if this highest milestone has already been printed.
             const isHighestMilestonePrinted = printedLogs.some(
                 log => log.student_id === student.student_id && log.milestone === highestMilestone
             );
 
-            // 3. Add the highest milestone to the list.
             milestones.push({
                 milestone: highestMilestone,
                 is_printed: isHighestMilestonePrinted
             });
 
-            // 4. If the highest milestone exists and is greater than 10,
-            //    check for the one before it.
             if (highestMilestone > 10) {
                 const previousMilestone = highestMilestone - 10;
 

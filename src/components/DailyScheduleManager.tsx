@@ -15,6 +15,12 @@ const initialFormState = {
     assignmentRows: [] as AssignmentRow[],
 };
 
+type ConfirmDialog = {
+    type: 'deleteSlot' | 'deleteParticipant';
+    message: string;
+    onConfirm: () => void;
+} | null;
+
 export const DailyScheduleManager = () => {
     // Main data stores from the database
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -26,7 +32,17 @@ export const DailyScheduleManager = () => {
     const [formState, setFormState] = useState(initialFormState);
     const [studentSearch, setStudentSearch] = useState('');
     const [horseSearch, setHorseSearch] = useState('');
+    const [confirmDialog, setConfirmDialog] = useState<ConfirmDialog>(null);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const isEditing = formState.id !== null;
+
+    // Auto-hide error message after 5 seconds
+    useEffect(() => {
+        if (errorMessage) {
+            const timer = setTimeout(() => setErrorMessage(null), 5000);
+            return () => clearTimeout(timer);
+        }
+    }, [errorMessage]);
 
     // --- DATA FETCHING ---
     useEffect(() => {
@@ -61,7 +77,7 @@ export const DailyScheduleManager = () => {
     // --- HANDLERS ---
     const handleAddRiderToGroup = (student: IStudent) => {
         if (formState.isSingleLesson && formState.assignmentRows.length >= 1) {
-            alert('A single lesson can only have one rider.');
+            setErrorMessage('Eine Einzelstunde kann nur einen Reiter haben.');
             return;
         }
         setFormState(prev => ({...prev, assignmentRows: [...prev.assignmentRows, { student: student, horse_id: '' }]}));
@@ -107,20 +123,23 @@ export const DailyScheduleManager = () => {
         e.preventDefault();
         const { id, time, isSingleLesson, assignmentRows } = formState;
         const completePairs = assignmentRows.filter(row => row.horse_id !== '');
+
         if (completePairs.length !== assignmentRows.length || completePairs.length === 0) {
-            alert('Bitte ein Pferd zu jedem Reiter zuweisen');
+            setErrorMessage('Bitte ein Pferd zu jedem Reiter zuweisen');
             return;
         }
+
         const assignedHorseIds = new Set(completePairs.map(p => p.horse_id));
         if (assignedHorseIds.size !== completePairs.length) {
-            alert('Ein Pferd kann nur einem Reiter pro Gruppe zugewiesen werden');
+            setErrorMessage('Ein Pferd kann nur einem Reiter pro Gruppe zugewiesen werden');
             return;
         }
 
         if(completePairs.length > 1 && isSingleLesson){
-            alert('Einzelstunde ausgewählt - nicht mehr als ein Reiter möglich')
+            setErrorMessage('Einzelstunde ausgewählt - nicht mehr als ein Reiter möglich');
             return;
         }
+
         const slotData = {
             date, time,
             participants: completePairs.map(p => ({
@@ -131,7 +150,6 @@ export const DailyScheduleManager = () => {
 
         if (isEditing) {
             await window.api.updateScheduleSlot({ id: id!, ...slotData });
-
             fetchSchedule(date);
         } else {
             await window.api.addScheduleSlot(slotData, isSingleLesson);
@@ -141,34 +159,49 @@ export const DailyScheduleManager = () => {
     };
 
     const handleDeleteSlot = async (scheduleId: number) => {
-        const userConfirmed = window.confirm('Wirklich die ganze Gruppe löschen?');
-        if (userConfirmed) {
-            await window.api.deleteScheduleSlot(scheduleId);
-            setSchedule(schedule.filter(slot => slot.id !== scheduleId));
-        }
+        setConfirmDialog({
+            type: 'deleteSlot',
+            message: 'Wirklich die ganze Gruppe löschen?',
+            onConfirm: async () => {
+                await window.api.deleteScheduleSlot(scheduleId);
+                setSchedule(schedule.filter(slot => slot.id !== scheduleId));
+                setConfirmDialog(null);
+            }
+        });
     };
 
     const handleDeleteParticipant = async (scheduleId: number, studentId: number) => {
-        const userConfirmed = window.confirm('Den Reiter wirklich von der Stunde entfernen?');
-        if (userConfirmed) {
-            await window.api.deleteScheduleParticipant(scheduleId, studentId);
+        const slot = schedule.find(s => s.id === scheduleId);
+        const isLastParticipant = slot?.participants.length === 1;
 
-            const newSchedule = schedule.map(slot => {
-                if (slot.id === scheduleId) {
-                    const updatedParticipants = slot.participants.filter(p => p.student_id !== studentId);
+        setConfirmDialog({
+            type: 'deleteParticipant',
+            message: isLastParticipant
+                ? 'Dies ist der letzte Reiter. Die ganze Gruppe wird gelöscht. Fortfahren?'
+                : 'Den Reiter wirklich von der Stunde entfernen?',
+            onConfirm: async () => {
+                await window.api.deleteScheduleParticipant(scheduleId, studentId);
 
-                    if(updatedParticipants.length > 0) {
-                        return { ...slot, participants: updatedParticipants };
-
-                    } else {
-                        handleDeleteSlot(scheduleId);
-                    }
+                if (isLastParticipant) {
+                    // Delete the entire slot from backend
+                    await window.api.deleteScheduleSlot(scheduleId);
+                    // Remove from local state
+                    setSchedule(schedule.filter(slot => slot.id !== scheduleId));
+                } else {
+                    // Just update the participants
+                    const newSchedule = schedule.map(slot => {
+                        if (slot.id === scheduleId) {
+                            const updatedParticipants = slot.participants.filter(p => p.student_id !== studentId);
+                            return { ...slot, participants: updatedParticipants };
+                        }
+                        return slot;
+                    });
+                    setSchedule(newSchedule);
                 }
-                return slot;
-            });
 
-            setSchedule(newSchedule);
-        }
+                setConfirmDialog(null);
+            }
+        });
     };
 
     const handlePrint = () => {
@@ -183,9 +216,96 @@ export const DailyScheduleManager = () => {
         return `${day}.${month}.${year}`;
     }
 
-
     return (
         <div>
+            {/* Error Message */}
+            {errorMessage && (
+                <div style={{
+                    position: 'fixed',
+                    top: '20px',
+                    right: '20px',
+                    background: '#dc3545',
+                    color: 'white',
+                    padding: '15px 20px',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                    zIndex: 1001,
+                    maxWidth: '400px'
+                }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>{errorMessage}</span>
+                        <button
+                            onClick={() => setErrorMessage(null)}
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: 'white',
+                                fontSize: '20px',
+                                cursor: 'pointer',
+                                marginLeft: '10px'
+                            }}
+                        >
+                            ×
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Confirmation Dialog */}
+            {confirmDialog && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: 'rgba(0,0,0,0.5)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 1000
+                }}>
+                    <div style={{
+                        background: 'white',
+                        padding: '20px',
+                        borderRadius: '8px',
+                        maxWidth: '400px',
+                        boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                    }}>
+                        <h3 style={{ marginTop: 0 }}>Bestätigen</h3>
+                        <p>{confirmDialog.message}</p>
+                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                            <button
+                                onClick={() => setConfirmDialog(null)}
+                                style={{
+                                    padding: '8px 16px',
+                                    background: '#6c757d',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Abbrechen
+                            </button>
+                            <button
+                                onClick={confirmDialog.onConfirm}
+                                style={{
+                                    padding: '8px 16px',
+                                    background: '#dc3545',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Löschen
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="toolbar" style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '20px' }}>
                 <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{width: 'auto'}} />
                 <button className="submit-btn" onClick={handlePrint} disabled={schedule.length === 0}>Drucken Übersicht Reitzeiten (PDF)</button>
@@ -196,16 +316,16 @@ export const DailyScheduleManager = () => {
                     <h2>{isEditing ? `Bearbeiten der Stunde von ${formState.time}` : 'Hinzufügen Stunde'}</h2>
                     <form onSubmit={handleSubmit}>
                         <div style={{display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline'}}>
-                                <input type="time" value={formState.time} style={{width: "auto"}}
-                                       onChange={e => setFormState({...formState, time: e.target.value})} required/>
-                                <div style={{display: 'flex', flexDirection: 'row', alignItems: 'baseline'}}>
-                                    <label htmlFor="isSingleLesson">Einzelstunde?</label>
-                                    <input type="checkbox" id="isSingleLesson" checked={formState.isSingleLesson}
-                                           onChange={e => setFormState({
-                                               ...formState,
-                                               isSingleLesson: e.target.checked
-                                           })}/>
-                                </div>
+                            <input type="time" value={formState.time} style={{width: "auto"}}
+                                   onChange={e => setFormState({...formState, time: e.target.value})} required/>
+                            <div style={{display: 'flex', flexDirection: 'row', alignItems: 'baseline'}}>
+                                <label htmlFor="isSingleLesson">Einzelstunde?</label>
+                                <input type="checkbox" id="isSingleLesson" checked={formState.isSingleLesson}
+                                       onChange={e => setFormState({
+                                           ...formState,
+                                           isSingleLesson: e.target.checked
+                                       })}/>
+                            </div>
                         </div>
 
                         <hr/>

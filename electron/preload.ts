@@ -12,6 +12,8 @@ const api = {
     // Horse methods
     getHorses: (): Promise<IHorse[]> => ipcRenderer.invoke('get-horses'),
     addHorse: (name: string, breed: string): Promise<IHorse> => ipcRenderer.invoke('add-horse', name, breed),
+    updateHorse: (horse: IHorse): Promise<IHorse> => ipcRenderer.invoke('update-horse', horse),
+    deleteHorse: (horseId: number): Promise<void> => ipcRenderer.invoke('delete-horse', horseId),
 
     // Lesson History methods
     getLessons: (): Promise<ILesson[]> => ipcRenderer.invoke('get-lessons'),

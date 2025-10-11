@@ -216,8 +216,24 @@ ipcMain.handle('delete-student', async (e, studentId: IStudent["id"]): Promise<[
 // Horses
 ipcMain.handle('get-horses', async (): Promise<IHorse[]> => dbQuery('SELECT * FROM horses'));
 ipcMain.handle('add-horse', async (e, name: string, breed: string): Promise<IHorse> => {
-    const result = dbRun('INSERT INTO horses (name, breed) VALUES (?, ?)', [name, breed]);
+    const result = dbRun('INSERT INTO horses (name, breed) VALUES (?, ?)', [name, '']);
     return { id: result.lastInsertRowid, name, breed };
+});
+
+ipcMain.handle('update-horse', (e, horse: IHorse): IHorse => {
+    const { id, name, breed } = horse;
+    dbRun('UPDATE horses SET name = ? WHERE id = ?', [name, id]);
+    return horse;
+});
+
+ipcMain.handle('delete-horse', (e, horseId: number) => {
+
+    const lessons = dbQuery('SELECT id FROM lessons WHERE horse_id = ?', [horseId]);
+    if (lessons.length > 0) {
+        throw new Error('Pferd kann nicht gelöscht werden');
+    }
+
+    dbRun('DELETE FROM horses WHERE id = ?', [horseId]);
 });
 
 // Lessons

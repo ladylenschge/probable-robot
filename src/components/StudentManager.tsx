@@ -3,18 +3,26 @@
 import React, { useState, useEffect } from 'react';
 import { IStudent } from '../../electron/types';
 
-// Define an initial state for a new/empty student form
 const initialFormState: IStudent = { id: 0, name: '', contact_info: '', isMember: false };
 
 export const StudentManager = () => {
     const [students, setStudents] = useState<IStudent[]>([]);
-
     const [formState, setFormState] = useState<IStudent>(initialFormState);
     const [isEditing, setIsEditing] = useState(false);
+    const [deleteConfirm, setDeleteConfirm] = useState<IStudent | null>(null);
+    const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
     useEffect(() => {
         window.api.getStudents().then(setStudents);
     }, []);
+
+    // Auto-hide message after 5 seconds
+    useEffect(() => {
+        if (message) {
+            const timer = setTimeout(() => setMessage(null), 5000);
+            return () => clearTimeout(timer);
+        }
+    }, [message]);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value, type } = e.target;
@@ -27,33 +35,55 @@ export const StudentManager = () => {
         setFormState(student);
     };
 
-
-    const handleDeleteClick = async (student: IStudent) => {
-        let res = await window.api.deleteStudent(student.id);
-        if(res[0]){
-            alert(res[1]);
-            setStudents(students.filter(s => s.id !== student.id));
-        } else {
-            alert(res[1])
-        }
+    const handleDeleteClick = (student: IStudent) => {
+        setDeleteConfirm(student);
     };
 
+    const confirmDelete = async () => {
+        if (!deleteConfirm) return;
+
+        try {
+            const res = await window.api.deleteStudent(deleteConfirm.id);
+            if (res[0]) {
+                setStudents(students.filter(s => s.id !== deleteConfirm.id));
+                setMessage({ text: res[1], type: 'success' });
+
+                // Reset form if we were editing the deleted student
+                if (isEditing && formState.id === deleteConfirm.id) {
+                    setIsEditing(false);
+                    setFormState(initialFormState);
+                }
+            } else {
+                setMessage({ text: res[1], type: 'error' });
+            }
+        } catch (error: any) {
+            setMessage({ text: error.message || 'Ein Fehler ist aufgetreten', type: 'error' });
+        }
+
+        setDeleteConfirm(null);
+    };
+
+    const cancelDelete = () => {
+        setDeleteConfirm(null);
+    };
 
     const handleCancelEdit = () => {
         setIsEditing(false);
-        setFormState(initialFormState); // Reset the form to its empty state
+        setFormState(initialFormState);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!formState.name) return; // Basic validation
+        if (!formState.name) return;
 
         if (isEditing) {
             const updatedStudent = await window.api.updateStudent(formState);
             setStudents(students.map(s => s.id === updatedStudent.id ? updatedStudent : s));
+            setMessage({ text: 'Erfolgreich aktualisiert', type: 'success' });
         } else {
             const newStudent = await window.api.addStudent(formState.name, formState.contact_info, formState.isMember);
             setStudents([...students, newStudent]);
+            setMessage({ text: 'Erfolgreich hinzugefügt', type: 'success' });
         }
 
         handleCancelEdit();
@@ -61,6 +91,94 @@ export const StudentManager = () => {
 
     return (
         <div className="manager-container">
+            {/* Message Notification */}
+            {message && (
+                <div style={{
+                    position: 'fixed',
+                    top: '20px',
+                    right: '20px',
+                    background: message.type === 'error' ? '#dc3545' : '#28a745',
+                    color: 'white',
+                    padding: '15px 20px',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                    zIndex: 1001,
+                    maxWidth: '400px'
+                }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>{message.text}</span>
+                        <button
+                            onClick={() => setMessage(null)}
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: 'white',
+                                fontSize: '20px',
+                                cursor: 'pointer',
+                                marginLeft: '10px'
+                            }}
+                        >
+                            ×
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Confirmation Modal */}
+            {deleteConfirm && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: 'rgba(0,0,0,0.5)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 1000
+                }}>
+                    <div style={{
+                        background: 'white',
+                        padding: '20px',
+                        borderRadius: '8px',
+                        maxWidth: '400px',
+                        boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                    }}>
+                        <h3 style={{ marginTop: 0 }}>Löschen bestätigen</h3>
+                        <p>Möchten Sie <strong>{deleteConfirm.name}</strong> wirklich löschen?</p>
+                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                            <button
+                                onClick={cancelDelete}
+                                style={{
+                                    padding: '8px 16px',
+                                    background: '#6c757d',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Abbrechen
+                            </button>
+                            <button
+                                onClick={confirmDelete}
+                                style={{
+                                    padding: '8px 16px',
+                                    background: '#dc3545',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Löschen
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="form-section">
                 <h2>{isEditing ? 'Bearbeiten' : 'Hinzufügen'}</h2>
                 <form onSubmit={handleSubmit}>
@@ -116,7 +234,7 @@ export const StudentManager = () => {
                                 </button>
                                 <button onClick={() => handleDeleteClick(s)} style={{padding: '5px 10px'}}
                                         className="del-btn">
-                                   &times;
+                                    &times;
                                 </button>
                             </td>
                         </tr>

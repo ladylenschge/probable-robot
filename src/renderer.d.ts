@@ -9,6 +9,8 @@ export interface IElectronAPI {
     // Horse methods
     getHorses: () => Promise<IHorse[]>;
     addHorse: (name: string, breed: string) => Promise<IHorse>;
+    updateHorse: (horse: IHorse) => Promise<IHorse>;
+    deleteHorse: (horseId: number) => Promise<void>;
     // Lesson methods
     getLessons: () => Promise<ILesson[]>;
     addLesson: (lesson: Omit<ILesson, 'id' | 'student_name' | 'horse_name' | 'singleLesson'>) => Promise<ILesson>;

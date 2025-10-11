@@ -197,12 +197,20 @@ ipcMain.handle('update-student', async (e, student: IStudent): Promise<IStudent>
     return student;
 });
 
-ipcMain.handle('delete-student', async (e, studentId: IStudent["id"]): Promise<string> => {
-    dbRun(
-        'DELETE FROM students WHERE id = ?',
-        [studentId]
-    );
-    return 'delete successful'
+ipcMain.handle('delete-student', async (e, studentId: IStudent["id"]): Promise<[boolean,string]> => {
+    let delSuccess = false;
+    let msg = 'Konnte nicht gelöscht werden'
+    try {
+        dbRun(
+            'DELETE FROM students WHERE id = ?',
+            [studentId]
+        );
+        return [delSuccess = true, msg = 'Erfolgreich gelöscht']
+
+    } catch (error) {
+        return [delSuccess, msg]
+    }
+
 });
 
 // Horses

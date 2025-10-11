@@ -29,8 +29,14 @@ export const StudentManager = () => {
 
 
     const handleDeleteClick = async (student: IStudent) => {
-        await window.api.deleteStudent(student.id);
-        setStudents(students.filter(s => s.id !== student.id));
+        let res = await window.api.deleteStudent(student.id);
+        console.log(res)
+        if(res[0]){
+            alert(res[1]);
+            setStudents(students.filter(s => s.id !== student.id));
+        } else {
+            alert(res[1])
+        }
     };
 
 
@@ -44,17 +50,13 @@ export const StudentManager = () => {
         if (!formState.name) return; // Basic validation
 
         if (isEditing) {
-            // If we are editing, call the update function
             const updatedStudent = await window.api.updateStudent(formState);
-            // Find the student in the list and replace it with the updated version
             setStudents(students.map(s => s.id === updatedStudent.id ? updatedStudent : s));
         } else {
-            // Otherwise, call the add function for a new student
             const newStudent = await window.api.addStudent(formState.name, formState.contact_info, formState.isMember);
             setStudents([...students, newStudent]);
         }
 
-        // Reset the form after submission
         handleCancelEdit();
     };
 
@@ -113,9 +115,9 @@ export const StudentManager = () => {
                                         className="submit-btn">
                                     Bearbeiten
                                 </button>
-                                <button onClick={() => handleDeleteClick(s)} style={{padding: '5px 5px'}}
+                                <button onClick={() => handleDeleteClick(s)} style={{padding: '5px 10px'}}
                                         className="del-btn">
-                                    X
+                                   &times;
                                 </button>
                             </td>
                         </tr>

@@ -334,8 +334,12 @@ ipcMain.handle('print-daily-schedule', async (e, date: string) => {
 });
 
 
-ipcMain.handle('add-schedule-slot', async (e, slot: Omit<IDailyScheduleSlot, 'id'>): Promise<IDailyScheduleSlot> => {
+ipcMain.handle('add-schedule-slot', async (e, slot: Omit<IDailyScheduleSlot, 'id'>, is_single_lesson): Promise<IDailyScheduleSlot> => {
     dbRun('BEGIN TRANSACTION');
+    let singleLesson = 0;
+    if(is_single_lesson){
+        singleLesson = 1;
+    }
     try {
         const scheduleResult = dbRun('INSERT INTO daily_schedules (date, time) VALUES (?, ?)', [slot.date, slot.time]);
         const scheduleId =  scheduleResult.lastInsertRowid;
@@ -346,8 +350,8 @@ ipcMain.handle('add-schedule-slot', async (e, slot: Omit<IDailyScheduleSlot, 'id
             const countBefore = countResultBefore[0]?.count || 0;
 
             dbRun(
-                'INSERT INTO lessons (student_id, horse_id, date, notes) VALUES (?, ?, ?, ?)',
-                [p.student_id, p.horse_id, slot.date, '']
+                'INSERT INTO lessons (student_id, horse_id, date, notes, is_single_lesson) VALUES (?, ?, ?, ?, ?)',
+                [p.student_id, p.horse_id, slot.date, '', singleLesson]
             );
 
             const countAfter = countBefore + 1;

@@ -1,4 +1,12 @@
-import {IStudent, IHorse, ILesson, IStudentReportInfo, IDailyScheduleSlot, ISchoolInfo} from '../electron/types';
+import {
+    IStudent,
+    IHorse,
+    ILesson,
+    IStudentReportInfo,
+    IDailyScheduleSlot,
+    ISchoolInfo,
+    IRiderGroupMember, IRiderGroup
+} from '../electron/types';
 
 export interface IElectronAPI {
     // Student methods
@@ -21,6 +29,24 @@ export interface IElectronAPI {
     deleteScheduleParticipant: (scheduleId: number, studentId: number) => Promise<void>;
     updateScheduleSlot: (slot: IDailyScheduleSlot) => Promise<IDailyScheduleSlot>;
 
+    // Rider Groups methods - AKTUALISIERT
+    getRiderGroups: () => Promise<IRiderGroup[]>;
+    addRiderGroup: (name: string, description: string, weekday: number, time: string) => Promise<IRiderGroup>;
+    updateRiderGroup: (group: IRiderGroup) => Promise<IRiderGroup>;
+    getGroupMembers: (groupId: number) => Promise<IRiderGroupMember[]>;
+    saveGroupMembers: (groupId: number, studentIds: number[]) => Promise<boolean>;
+    deleteRiderGroup: (groupId: number) => Promise<boolean>;
+
+    // Absagen verwalten
+    getCancellationsForDate: (groupId: number, date: string) => Promise<number[]>; // Gibt Student-IDs zurück
+    toggleCancellation: (groupId: number, studentId: number, date: string) => Promise<boolean>;
+
+    // Gruppe für Datum laden
+    getGroupsForDate: (date: string) => Promise<IRiderGroup[]>;
+    loadGroupForSchedule: (groupId: number, date: string) => Promise<{students: IRiderGroupMember[], cancellations: number[]}>;
+
+    printMonthlyGroups: (year: number, month: number) => Promise<{success: boolean, path?: string, error?: string}>;
+
     printDailySchedule: (date: string) => Promise<void>;
     // 10 Cards
     getAvailableReports: () => Promise<IStudentReportInfo[]>;
@@ -28,6 +54,7 @@ export interface IElectronAPI {
     // School Info
     getSchoolInfo: () => Promise<ISchoolInfo | null>;
     updateSchoolInfo: (info: ISchoolInfo) => Promise<void>;
+
 
 }
 

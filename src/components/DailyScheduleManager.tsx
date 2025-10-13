@@ -21,12 +21,25 @@ type ConfirmDialog = {
     onConfirm: () => void;
 } | null;
 
+interface IRiderGroup {
+    id: number;
+    name: string;
+    description?: string;
+}
+
+interface IRiderGroupMember {
+    group_id: number;
+    student_id: number;
+    student_name?: string;
+}
+
 export const DailyScheduleManager = () => {
     // Main data stores from the database
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [schedule, setSchedule] = useState<IDailyScheduleSlot[]>([]);
     const [allStudents, setAllStudents] = useState<IStudent[]>([]);
     const [allHorses, setAllHorses] = useState<IHorse[]>([]);
+    const [riderGroups, setRiderGroups] = useState<IRiderGroup[]>([]);
 
     // Form and filter state
     const [formState, setFormState] = useState(initialFormState);
@@ -34,6 +47,7 @@ export const DailyScheduleManager = () => {
     const [horseSearch, setHorseSearch] = useState('');
     const [confirmDialog, setConfirmDialog] = useState<ConfirmDialog>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    const [showGroupSelector, setShowGroupSelector] = useState(false);
     const isEditing = formState.id !== null;
 
     // Auto-hide error message after 5 seconds
@@ -48,6 +62,7 @@ export const DailyScheduleManager = () => {
     useEffect(() => {
         window.api.getStudents().then(setAllStudents);
         window.api.getHorses().then(setAllHorses);
+        window.api.getRiderGroups().then(setRiderGroups);
     }, []);
 
     const fetchSchedule = (forDate: string) => {
@@ -75,11 +90,28 @@ export const DailyScheduleManager = () => {
     );
 
     // --- HANDLERS ---
+    const handleLoadGroup = async (groupId: number) => {
+        const members: IRiderGroupMember[] = await window.api.getGroupMembers(groupId);
+
+        // Reiter OHNE Pferd hinzufügen - Pferde werden manuell zugewiesen
+        const newRows: AssignmentRow[] = members
+            .map(m => allStudents.find(s => s.id === m.student_id))
+            .filter((student): student is IStudent => student !== undefined)
+            .map(student => ({
+                student,
+                horse_id: '' as '' | number
+            }));
+
+        setFormState(prev => ({
+            ...prev,
+            assignmentRows: [...prev.assignmentRows, ...newRows]
+        }));
+
+        setShowGroupSelector(false);
+        setErrorMessage(null);
+    };
+
     const handleAddRiderToGroup = (student: IStudent) => {
-        //if (formState.isSingleLesson && formState.assignmentRows.length >= 1) {
-        //    setErrorMessage('Eine Einzelstunde kann nur einen Reiter haben.');
-       //     return;
-       // }
         setFormState(prev => ({...prev, assignmentRows: [...prev.assignmentRows, { student: student, horse_id: '' }]}));
     };
 
@@ -135,11 +167,6 @@ export const DailyScheduleManager = () => {
             return;
         }
 
-        //if(completePairs.length > 1 && isSingleLesson){
-          //  setErrorMessage('Einzelstunde ausgewählt - nicht mehr als ein Reiter möglich');
-            //return;
-        //}
-
         const slotData = {
             date, time,
             participants: completePairs.map(p => ({
@@ -183,12 +210,9 @@ export const DailyScheduleManager = () => {
                 await window.api.deleteScheduleParticipant(scheduleId, studentId);
 
                 if (isLastParticipant) {
-                    // Delete the entire slot from backend
                     await window.api.deleteScheduleSlot(scheduleId);
-                    // Remove from local state
                     setSchedule(schedule.filter(slot => slot.id !== scheduleId));
                 } else {
-                    // Just update the participants
                     const newSchedule = schedule.map(slot => {
                         if (slot.id === scheduleId) {
                             const updatedParticipants = slot.participants.filter(p => p.student_id !== studentId);
@@ -206,6 +230,13 @@ export const DailyScheduleManager = () => {
 
     const handlePrint = () => {
         window.api.printDailySchedule(date);
+    };
+
+    const handlePrintMonthly = () => {
+        const dateObj = new Date(date);
+        const year = dateObj.getFullYear();
+        const month = dateObj.getMonth() + 1;
+        window.api.printMonthlyGroups(year, month);
     };
 
     const formatDate = (isoString: string) =>  {
@@ -306,9 +337,83 @@ export const DailyScheduleManager = () => {
                 </div>
             )}
 
-            <div className="toolbar" style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '20px' }}>
+            {/* Group Selector Modal */}
+            {showGroupSelector && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: 'rgba(0,0,0,0.5)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 1000
+                }}>
+                    <div style={{
+                        background: 'white',
+                        padding: '20px',
+                        borderRadius: '8px',
+                        maxWidth: '500px',
+                        maxHeight: '80vh',
+                        overflowY: 'auto',
+                        boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                    }}>
+                        <h3 style={{ marginTop: 0 }}>Reitergruppe laden</h3>
+                        {riderGroups.length === 0 ? (
+                            <p style={{color: '#6c757d'}}>Keine Gruppen vorhanden. Erstelle zuerst Gruppen im Reitergruppen-Manager.</p>
+                        ) : (
+                            <div>
+                                {riderGroups.map(group => (
+                                    <div
+                                        key={group.id}
+                                        onClick={() => handleLoadGroup(group.id)}
+                                        style={{
+                                            padding: '12px',
+                                            marginBottom: '8px',
+                                            background: '#f8f9fa',
+                                            border: '1px solid #ddd',
+                                            borderRadius: '4px',
+                                            cursor: 'pointer',
+                                            transition: 'background 0.2s'
+                                        }}
+                                        onMouseEnter={e => e.currentTarget.style.background = '#e9ecef'}
+                                        onMouseLeave={e => e.currentTarget.style.background = '#f8f9fa'}
+                                    >
+                                        <strong>{group.name}</strong>
+                                        {group.description && <div style={{fontSize: '0.9em', color: '#6c757d', marginTop: '4px'}}>{group.description}</div>}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        <button
+                            onClick={() => setShowGroupSelector(false)}
+                            style={{
+                                marginTop: '15px',
+                                padding: '8px 16px',
+                                background: '#6c757d',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                width: '100%'
+                            }}
+                        >
+                            Abbrechen
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            <div className="toolbar" style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '20px', flexWrap: 'wrap' }}>
                 <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{width: 'auto'}} />
-                <button className="submit-btn" onClick={handlePrint} disabled={schedule.length === 0}>Drucken Übersicht Reitzeiten (PDF)</button>
+                <button className="submit-btn" onClick={handlePrint} disabled={schedule.length === 0}>
+                    Tagesübersicht drucken (PDF)
+                </button>
+                <button className="submit-btn" onClick={handlePrintMonthly} style={{background: '#28a745'}}>
+                    Monatsübersicht drucken (PDF)
+                </button>
             </div>
 
             <div className="manager-container" style={{gridTemplateColumns: '2fr 1fr', alignItems: 'start', marginBottom: '40px'}}>
@@ -328,10 +433,28 @@ export const DailyScheduleManager = () => {
                             </div>
                         </div>
 
+                        <button
+                            type="button"
+                            onClick={() => setShowGroupSelector(true)}
+                            style={{
+                                width: '100%',
+                                padding: '10px',
+                                marginTop: '10px',
+                                background: '#17a2b8',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontWeight: 'bold'
+                            }}
+                        >
+                            📋 Reitergruppe laden
+                        </button>
+
                         <hr/>
 
                         <h4>Reiter in der Gruppe ({formState.assignmentRows.length})</h4>
-                        {formState.assignmentRows.length === 0 && <p style={{color: '#6c757d'}}>Reiter aus der Liste (rechts) hinzufügen.</p>}
+                        {formState.assignmentRows.length === 0 && <p style={{color: '#6c757d'}}>Reiter aus der Liste (rechts) hinzufügen oder Gruppe laden.</p>}
                         {formState.assignmentRows.map((row, index) => (
                             <div key={row.student.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '10px', alignItems: 'baseline' }}>
                                 <span style={{fontWeight: 'bold', padding: '8px', background: '#e9ecef', borderRadius: '4px'}}>{row.student.name}</span>

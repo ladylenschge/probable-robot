@@ -67,3 +67,25 @@ export interface ISchoolInfo {
     price_10_card_members: number | '';
     price_10_card_nonMembers:  number | '';
 }
+export interface IRiderGroup {
+    id: number;
+    name: string;
+    description?: string;
+    weekday: number;  // 0-6
+    time: string;     // "HH:MM"
+    created_at: string;
+}
+
+export interface IRiderGroupMember {
+    group_id: number;
+    student_id: number;
+    student_name?: string;
+}
+
+export interface IGroupCancellation {
+    id: number;
+    group_id: number;
+    student_id: number;
+    date: string;
+    created_at: string;
+}

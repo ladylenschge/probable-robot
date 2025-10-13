@@ -35,6 +35,13 @@ const api = {
     // School Info
     getSchoolInfo: () => ipcRenderer.invoke('get-school-info'),
     updateSchoolInfo: (info: string) => ipcRenderer.invoke('update-school-info', info),
+
+    getRiderGroups: () => ipcRenderer.invoke('get-rider-groups'),
+    addRiderGroup: (name: string, description: string, weekday: number, time: string) =>ipcRenderer.invoke('add-rider-group', name, description, weekday, time),
+    getGroupMembers: (groupId: number) => ipcRenderer.invoke('get-group-members', groupId),
+    saveGroupMembers: (groupId: number, members: any[]) => ipcRenderer.invoke('save-group-members', groupId, members),
+    deleteRiderGroup: (groupId: number) => ipcRenderer.invoke('delete-rider-group', groupId),
+    printMonthlyGroups: (year: number, month: number) => ipcRenderer.invoke('print-monthly-groups', year, month),
 };
 
 contextBridge.exposeInMainWorld('api', api);

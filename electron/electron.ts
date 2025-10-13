@@ -3,7 +3,16 @@ import path from 'path';
 import fs from 'fs';
 import PDFDocument from 'pdfkit';
 import {dbQuery, dbRun} from './database';
-import {IDailyScheduleSlot, IHorse, ILesson, ISchoolInfo, IStudent, IStudentReportInfo, LessonDays} from './types';
+import {
+    IDailyScheduleSlot,
+    IHorse,
+    ILesson,
+    IRiderGroup, IRiderGroupMember,
+    ISchoolInfo,
+    IStudent,
+    IStudentReportInfo,
+    LessonDays
+} from './types';
 import {autoUpdater} from 'electron-updater';
 import log from 'electron-log';
 
@@ -629,6 +638,155 @@ ipcMain.handle('update-schedule-slot', async (e, slot: IDailyScheduleSlot) => {
         console.error('Transaction Error in update-schedule-slot:', err);
         throw err;
     }
+});
+// ============= RIDER GROUPS - ERWEITERT =============
+
+// Alle Reitergruppen abrufen
+ipcMain.handle('get-rider-groups', async (): Promise<IRiderGroup[]> => {
+    return dbQuery('SELECT * FROM rider_groups ORDER BY weekday, time, name');
+});
+
+// Neue Reitergruppe erstellen - MIT Wochentag und Zeit
+ipcMain.handle('add-rider-group', async (e, name: string, description: string, weekday: number, time: string): Promise<IRiderGroup> => {
+    console.log(weekday)
+    const result = dbRun(
+        'INSERT INTO rider_groups (name, description, weekday, time) VALUES (?, ?, ?, ?)',
+        [name, description || '', weekday, time]
+    );
+    return {
+        id: result.lastInsertRowid,
+        name,
+        description,
+        weekday,
+        time,
+        created_at: new Date().toISOString()
+    };
+});
+
+// Reitergruppe aktualisieren
+ipcMain.handle('update-rider-group', async (e, group: IRiderGroup): Promise<IRiderGroup> => {
+    dbRun(
+        'UPDATE rider_groups SET name = ?, description = ?, weekday = ?, time = ? WHERE id = ?',
+        [group.name, group.description || '', group.weekday, group.time, group.id]
+    );
+    return group;
+});
+
+// Mitglieder einer Gruppe abrufen
+ipcMain.handle('get-group-members', async (e, groupId: number): Promise<IRiderGroupMember[]> => {
+    const query = `
+        SELECT 
+            rgm.group_id,
+            rgm.student_id,
+            s.name as student_name
+        FROM rider_group_members rgm
+        JOIN students s ON rgm.student_id = s.id
+        WHERE rgm.group_id = ?
+        ORDER BY s.name
+    `;
+    return dbQuery(query, [groupId]);
+});
+
+// Mitglieder einer Gruppe speichern
+ipcMain.handle('save-group-members', async (e, groupId: number, studentIds: number[]): Promise<boolean> => {
+    dbRun('BEGIN TRANSACTION');
+    try {
+        dbRun('DELETE FROM rider_group_members WHERE group_id = ?', [groupId]);
+
+        for (const studentId of studentIds) {
+            dbRun(
+                'INSERT INTO rider_group_members (group_id, student_id) VALUES (?, ?)',
+                [groupId, studentId]
+            );
+        }
+
+        dbRun('COMMIT');
+        return true;
+    } catch (err) {
+        dbRun('ROLLBACK');
+        console.error('Transaction Error in save-group-members:', err);
+        throw err;
+    }
+});
+
+// Reitergruppe löschen
+ipcMain.handle('delete-rider-group', async (e, groupId: number): Promise<boolean> => {
+    try {
+        dbRun('DELETE FROM rider_groups WHERE id = ?', [groupId]);
+        return true;
+    } catch (err) {
+        console.error('Error deleting rider group:', err);
+        throw err;
+    }
+});
+
+// Absagen für ein Datum abrufen
+ipcMain.handle('get-cancellations-for-date', async (e, groupId: number, date: string): Promise<number[]> => {
+    const cancellations = dbQuery(
+        'SELECT student_id FROM group_cancellations WHERE group_id = ? AND date = ?',
+        [groupId, date]
+    );
+    return cancellations.map((c: any) => c.student_id);
+});
+
+// Absage umschalten (hinzufügen/entfernen)
+ipcMain.handle('toggle-cancellation', async (e, groupId: number, studentId: number, date: string): Promise<boolean> => {
+    // Prüfe ob Absage existiert
+    const existing = dbQuery(
+        'SELECT id FROM group_cancellations WHERE group_id = ? AND student_id = ? AND date = ?',
+        [groupId, studentId, date]
+    );
+
+    if (existing.length > 0) {
+        // Absage entfernen
+        dbRun(
+            'DELETE FROM group_cancellations WHERE group_id = ? AND student_id = ? AND date = ?',
+            [groupId, studentId, date]
+        );
+        return false; // nicht abgesagt
+    } else {
+        // Absage hinzufügen
+        dbRun(
+            'INSERT INTO group_cancellations (group_id, student_id, date) VALUES (?, ?, ?)',
+            [groupId, studentId, date]
+        );
+        return true; // abgesagt
+    }
+});
+
+// Gruppen für ein bestimmtes Datum finden (basierend auf Wochentag)
+ipcMain.handle('get-groups-for-date', async (e, date: string): Promise<IRiderGroup[]> => {
+    const dateObj = new Date(date + 'T00:00:00');
+    const weekday = dateObj.getDay(); // 0 = Sonntag, 1 = Montag, etc.
+
+    return dbQuery('SELECT * FROM rider_groups WHERE weekday = ? ORDER BY time, name', [weekday]);
+});
+
+// Gruppe für Schedule laden - MIT Absage-Infos
+ipcMain.handle('load-group-for-schedule', async (e, groupId: number, date: string) => {
+    // Alle Mitglieder der Gruppe
+    const members = dbQuery(`
+        SELECT rgm.group_id,
+               rgm.student_id,
+               s.name as student_name
+        FROM rider_group_members rgm
+                 JOIN students s ON rgm.student_id = s.id
+        WHERE rgm.group_id = ?
+        ORDER BY s.name
+    `, [groupId]);
+
+    // Absagen für dieses Datum
+    const cancellations = dbQuery(
+        'SELECT student_id FROM group_cancellations WHERE group_id = ? AND date = ?',
+        [groupId, date]
+    );
+
+    const cancelledStudentIds = cancellations.map((c: any) => c.student_id);
+
+    return {
+        students: members,
+        cancellations: cancelledStudentIds
+    };
 });
 
 // App Lifecycle

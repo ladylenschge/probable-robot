@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { IStudent, IHorse, IDailyScheduleSlot } from '../../electron/types';
 
-// The shape of our assignment rows in the builder
 type AssignmentRow = {
     student: IStudent;
     horse_id: number | '';
+    isCancelled?: boolean;
 };
 
-// The shape of our form's state object
 const initialFormState = {
     id: null as number | null,
     time: '09:00',
@@ -25,6 +24,8 @@ interface IRiderGroup {
     id: number;
     name: string;
     description?: string;
+    weekday: number;
+    time: string;
 }
 
 interface IRiderGroupMember {
@@ -34,23 +35,24 @@ interface IRiderGroupMember {
 }
 
 export const DailyScheduleManager = () => {
-    // Main data stores from the database
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [schedule, setSchedule] = useState<IDailyScheduleSlot[]>([]);
     const [allStudents, setAllStudents] = useState<IStudent[]>([]);
     const [allHorses, setAllHorses] = useState<IHorse[]>([]);
     const [riderGroups, setRiderGroups] = useState<IRiderGroup[]>([]);
+    const [groupsForDate, setGroupsForDate] = useState<IRiderGroup[]>([]);
 
-    // Form and filter state
     const [formState, setFormState] = useState(initialFormState);
     const [studentSearch, setStudentSearch] = useState('');
     const [horseSearch, setHorseSearch] = useState('');
     const [confirmDialog, setConfirmDialog] = useState<ConfirmDialog>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [showGroupSelector, setShowGroupSelector] = useState(false);
+    const [selectedGroupForLoad, setSelectedGroupForLoad] = useState<number | null>(null);
     const isEditing = formState.id !== null;
 
-    // Auto-hide error message after 5 seconds
+    const weekDayNames = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+
     useEffect(() => {
         if (errorMessage) {
             const timer = setTimeout(() => setErrorMessage(null), 5000);
@@ -58,7 +60,6 @@ export const DailyScheduleManager = () => {
         }
     }, [errorMessage]);
 
-    // --- DATA FETCHING ---
     useEffect(() => {
         window.api.getStudents().then(setAllStudents);
         window.api.getHorses().then(setAllHorses);
@@ -68,11 +69,28 @@ export const DailyScheduleManager = () => {
     const fetchSchedule = (forDate: string) => {
         window.api.getDailySchedule(forDate).then(setSchedule);
     };
-    useEffect(() => { if (date) fetchSchedule(date) }, [date]);
 
-    // --- DERIVED STATE (for the UI) ---
-    const assignedStudentIds = useMemo(() => new Set(formState.assignmentRows.map(row => row.student.id)), [formState.assignmentRows]);
-    const assignedHorseIdsInForm = useMemo(() => new Set(formState.assignmentRows.map(row => row.horse_id)), [formState.assignmentRows]);
+    useEffect(() => {
+        if (date) {
+            fetchSchedule(date);
+            loadGroupsForDate(date);
+        }
+    }, [date]);
+
+    const loadGroupsForDate = async (forDate: string) => {
+        const groups = await window.api.getGroupsForDate(forDate);
+        setGroupsForDate(groups);
+    };
+
+    const assignedStudentIds = useMemo(() =>
+            new Set(formState.assignmentRows.map(row => row.student.id)),
+        [formState.assignmentRows]
+    );
+
+    const assignedHorseIdsInForm = useMemo(() =>
+            new Set(formState.assignmentRows.map(row => row.horse_id)),
+        [formState.assignmentRows]
+    );
 
     const availableStudents = useMemo(() =>
             allStudents.filter(s =>
@@ -89,34 +107,56 @@ export const DailyScheduleManager = () => {
         [allHorses, horseSearch]
     );
 
-    // --- HANDLERS ---
     const handleLoadGroup = async (groupId: number) => {
-        const members: IRiderGroupMember[] = await window.api.getGroupMembers(groupId);
+        const result = await window.api.loadGroupForSchedule(groupId, date);
 
-        // Reiter OHNE Pferd hinzufügen - Pferde werden manuell zugewiesen
-        const newRows: AssignmentRow[] = members
+        const newRows: AssignmentRow[] = result.students
             .map(m => allStudents.find(s => s.id === m.student_id))
             .filter((student): student is IStudent => student !== undefined)
             .map(student => ({
                 student,
-                horse_id: '' as '' | number
+                horse_id: '' as '' | number,
+                isCancelled: result.cancellations.includes(student.id)
             }));
 
-        setFormState(prev => ({
-            ...prev,
-            assignmentRows: [...prev.assignmentRows, ...newRows]
-        }));
+        const group = groupsForDate.find(g => g.id === groupId);
+        if (group) {
+            setFormState(prev => ({
+                ...prev,
+                time: group.time,
+                assignmentRows: [...prev.assignmentRows, ...newRows]
+            }));
+        }
 
         setShowGroupSelector(false);
+        setSelectedGroupForLoad(null);
         setErrorMessage(null);
     };
 
+    const handleToggleCancellation = async (studentId: number, rowIndex: number) => {
+        if (!selectedGroupForLoad) return;
+
+        const isCancelled = await window.api.toggleCancellation(selectedGroupForLoad, studentId, date);
+
+        setFormState(prev => {
+            const newRows = [...prev.assignmentRows];
+            newRows[rowIndex] = { ...newRows[rowIndex], isCancelled };
+            return { ...prev, assignmentRows: newRows };
+        });
+    };
+
     const handleAddRiderToGroup = (student: IStudent) => {
-        setFormState(prev => ({...prev, assignmentRows: [...prev.assignmentRows, { student: student, horse_id: '' }]}));
+        setFormState(prev => ({
+            ...prev,
+            assignmentRows: [...prev.assignmentRows, { student: student, horse_id: '', isCancelled: false }]
+        }));
     };
 
     const handleRemoveRiderFromGroup = (studentId: number) => {
-        setFormState(prev => ({...prev, assignmentRows: prev.assignmentRows.filter(row => row.student.id !== studentId)}));
+        setFormState(prev => ({
+            ...prev,
+            assignmentRows: prev.assignmentRows.filter(row => row.student.id !== studentId)
+        }));
     };
 
     const handleHorseChange = (rowIndex: number, newHorseIdStr: string) => {
@@ -142,6 +182,7 @@ export const DailyScheduleManager = () => {
             assignmentRows: slot.participants.map(p => ({
                 student: allStudents.find(s => s.id === p.student_id)!,
                 horse_id: p.horse_id,
+                isCancelled: false
             })),
         });
         window.scrollTo(0, 0);
@@ -149,15 +190,19 @@ export const DailyScheduleManager = () => {
 
     const handleCancelEdit = () => {
         setFormState(initialFormState);
+        setSelectedGroupForLoad(null);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const { id, time, isSingleLesson, assignmentRows } = formState;
-        const completePairs = assignmentRows.filter(row => row.horse_id !== '');
 
-        if (completePairs.length !== assignmentRows.length || completePairs.length === 0) {
-            setErrorMessage('Bitte ein Pferd zu jedem Reiter zuweisen');
+        // Nur nicht-abgesagte Reiter
+        const activeRows = assignmentRows.filter(row => !row.isCancelled);
+        const completePairs = activeRows.filter(row => row.horse_id !== '');
+
+        if (completePairs.length !== activeRows.length || completePairs.length === 0) {
+            setErrorMessage('Bitte ein Pferd zu jedem aktiven Reiter zuweisen');
             return;
         }
 
@@ -170,8 +215,10 @@ export const DailyScheduleManager = () => {
         const slotData = {
             date, time,
             participants: completePairs.map(p => ({
-                student_id: p.student.id, horse_id: p.horse_id as number,
-                student_name: '', horse_name: '',
+                student_id: p.student.id,
+                horse_id: p.horse_id as number,
+                student_name: '',
+                horse_name: '',
             })),
         };
 
@@ -182,7 +229,9 @@ export const DailyScheduleManager = () => {
             await window.api.addScheduleSlot(slotData, isSingleLesson);
             fetchSchedule(date);
         }
+
         setFormState(initialFormState);
+        setSelectedGroupForLoad(null);
     };
 
     const handleDeleteSlot = async (scheduleId: number) => {
@@ -249,159 +298,94 @@ export const DailyScheduleManager = () => {
 
     return (
         <div>
-            {/* Error Message */}
             {errorMessage && (
                 <div style={{
-                    position: 'fixed',
-                    top: '20px',
-                    right: '20px',
-                    background: '#dc3545',
-                    color: 'white',
-                    padding: '15px 20px',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-                    zIndex: 1001,
-                    maxWidth: '400px'
+                    position: 'fixed', top: '20px', right: '20px',
+                    background: '#dc3545', color: 'white', padding: '15px 20px',
+                    borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                    zIndex: 1001, maxWidth: '400px'
                 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span>{errorMessage}</span>
-                        <button
-                            onClick={() => setErrorMessage(null)}
-                            style={{
-                                background: 'transparent',
-                                border: 'none',
-                                color: 'white',
-                                fontSize: '20px',
-                                cursor: 'pointer',
-                                marginLeft: '10px'
-                            }}
-                        >
-                            ×
-                        </button>
+                        <button onClick={() => setErrorMessage(null)} style={{
+                            background: 'transparent', border: 'none', color: 'white',
+                            fontSize: '20px', cursor: 'pointer', marginLeft: '10px'
+                        }}>×</button>
                     </div>
                 </div>
             )}
 
-            {/* Confirmation Dialog */}
             {confirmDialog && (
                 <div style={{
-                    position: 'fixed',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    background: 'rgba(0,0,0,0.5)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    zIndex: 1000
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0,0,0,0.5)', display: 'flex',
+                    alignItems: 'center', justifyContent: 'center', zIndex: 1000
                 }}>
                     <div style={{
-                        background: 'white',
-                        padding: '20px',
-                        borderRadius: '8px',
-                        maxWidth: '400px',
-                        boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                        background: 'white', padding: '20px', borderRadius: '8px',
+                        maxWidth: '400px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
                     }}>
                         <h3 style={{ marginTop: 0 }}>Bestätigen</h3>
                         <p>{confirmDialog.message}</p>
                         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                            <button
-                                onClick={() => setConfirmDialog(null)}
-                                style={{
-                                    padding: '8px 16px',
-                                    background: '#6c757d',
-                                    color: 'white',
-                                    border: 'none',
-                                    borderRadius: '4px',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                Abbrechen
-                            </button>
-                            <button
-                                onClick={confirmDialog.onConfirm}
-                                style={{
-                                    padding: '8px 16px',
-                                    background: '#dc3545',
-                                    color: 'white',
-                                    border: 'none',
-                                    borderRadius: '4px',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                Löschen
-                            </button>
+                            <button onClick={() => setConfirmDialog(null)} style={{
+                                padding: '8px 16px', background: '#6c757d', color: 'white',
+                                border: 'none', borderRadius: '4px', cursor: 'pointer'
+                            }}>Abbrechen</button>
+                            <button onClick={confirmDialog.onConfirm} style={{
+                                padding: '8px 16px', background: '#dc3545', color: 'white',
+                                border: 'none', borderRadius: '4px', cursor: 'pointer'
+                            }}>Löschen</button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* Group Selector Modal */}
             {showGroupSelector && (
                 <div style={{
-                    position: 'fixed',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    background: 'rgba(0,0,0,0.5)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    zIndex: 1000
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0,0,0,0.5)', display: 'flex',
+                    alignItems: 'center', justifyContent: 'center', zIndex: 1000
                 }}>
                     <div style={{
-                        background: 'white',
-                        padding: '20px',
-                        borderRadius: '8px',
-                        maxWidth: '500px',
-                        maxHeight: '80vh',
-                        overflowY: 'auto',
+                        background: 'white', padding: '20px', borderRadius: '8px',
+                        maxWidth: '500px', maxHeight: '80vh', overflowY: 'auto',
                         boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
                     }}>
                         <h3 style={{ marginTop: 0 }}>Reitergruppe laden</h3>
                         {riderGroups.length === 0 ? (
-                            <p style={{color: '#6c757d'}}>Keine Gruppen vorhanden. Erstelle zuerst Gruppen im Reitergruppen-Manager.</p>
+                            <p style={{color: '#6c757d'}}>Keine Gruppen vorhanden.</p>
                         ) : (
                             <div>
                                 {riderGroups.map(group => (
                                     <div
                                         key={group.id}
-                                        onClick={() => handleLoadGroup(group.id)}
+                                        onClick={() => {
+                                            setSelectedGroupForLoad(group.id);
+                                            handleLoadGroup(group.id);
+                                        }}
                                         style={{
-                                            padding: '12px',
-                                            marginBottom: '8px',
-                                            background: '#f8f9fa',
-                                            border: '1px solid #ddd',
-                                            borderRadius: '4px',
-                                            cursor: 'pointer',
-                                            transition: 'background 0.2s'
+                                            padding: '12px', marginBottom: '8px',
+                                            background: '#f8f9fa', border: '1px solid #ddd',
+                                            borderRadius: '4px', cursor: 'pointer'
                                         }}
                                         onMouseEnter={e => e.currentTarget.style.background = '#e9ecef'}
                                         onMouseLeave={e => e.currentTarget.style.background = '#f8f9fa'}
                                     >
                                         <strong>{group.name}</strong>
-                                        {group.description && <div style={{fontSize: '0.9em', color: '#6c757d', marginTop: '4px'}}>{group.description}</div>}
+                                        <div style={{fontSize: '0.9em', color: '#6c757d'}}>
+                                            {weekDayNames[group.weekday]}, {group.time} Uhr
+                                        </div>
+                                        {group.description && <div style={{fontSize: '0.85em', color: '#999', marginTop: '4px'}}>{group.description}</div>}
                                     </div>
                                 ))}
                             </div>
                         )}
-                        <button
-                            onClick={() => setShowGroupSelector(false)}
-                            style={{
-                                marginTop: '15px',
-                                padding: '8px 16px',
-                                background: '#6c757d',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '4px',
-                                cursor: 'pointer',
-                                width: '100%'
-                            }}
-                        >
-                            Abbrechen
-                        </button>
+                        <button onClick={() => setShowGroupSelector(false)} style={{
+                            marginTop: '15px', padding: '8px 16px', background: '#6c757d',
+                            color: 'white', border: 'none', borderRadius: '4px',
+                            cursor: 'pointer', width: '100%'
+                        }}>Abbrechen</button>
                     </div>
                 </div>
             )}
@@ -409,12 +393,44 @@ export const DailyScheduleManager = () => {
             <div className="toolbar" style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '20px', flexWrap: 'wrap' }}>
                 <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{width: 'auto'}} />
                 <button className="submit-btn" onClick={handlePrint} disabled={schedule.length === 0}>
-                    Tagesübersicht drucken (PDF)
+                    Tagesübersicht drucken
                 </button>
                 <button className="submit-btn" onClick={handlePrintMonthly} style={{background: '#28a745'}}>
-                    Monatsübersicht drucken (PDF)
+                    Monatsübersicht drucken
                 </button>
             </div>
+
+            {/* Gruppen für diesen Tag */}
+            {groupsForDate.length > 0 && (
+                <div style={{
+                    background: '#e7f3ff', padding: '15px', borderRadius: '8px',
+                    marginBottom: '20px', border: '2px solid #007bff'
+                }}>
+                    <h4 style={{margin: '0 0 10px 0'}}>📅 Gruppen für {weekDayNames[new Date(date).getDay()]}</h4>
+                    <div style={{display: 'flex', gap: '10px', flexWrap: 'wrap'}}>
+                        {groupsForDate.map(group => (
+                            <button
+                                key={group.id}
+                                onClick={() => {
+                                    setSelectedGroupForLoad(group.id);
+                                    handleLoadGroup(group.id);
+                                }}
+                                style={{
+                                    padding: '8px 16px',
+                                    background: selectedGroupForLoad === group.id ? '#007bff' : 'white',
+                                    color: selectedGroupForLoad === group.id ? 'white' : '#007bff',
+                                    border: '2px solid #007bff',
+                                    borderRadius: '20px',
+                                    cursor: 'pointer',
+                                    fontWeight: 'bold'
+                                }}
+                            >
+                                {group.name} - {group.time} Uhr
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             <div className="manager-container" style={{gridTemplateColumns: '2fr 1fr', alignItems: 'start', marginBottom: '40px'}}>
                 <div className="form-section">
@@ -426,49 +442,62 @@ export const DailyScheduleManager = () => {
                             <div style={{display: 'flex', flexDirection: 'row', alignItems: 'baseline'}}>
                                 <label htmlFor="isSingleLesson">Einzelstunde?</label>
                                 <input type="checkbox" id="isSingleLesson" checked={formState.isSingleLesson}
-                                       onChange={e => setFormState({
-                                           ...formState,
-                                           isSingleLesson: e.target.checked
-                                       })}/>
+                                       onChange={e => setFormState({...formState, isSingleLesson: e.target.checked})}/>
                             </div>
                         </div>
 
-                        <button
-                            type="button"
-                            onClick={() => setShowGroupSelector(true)}
-                            style={{
-                                width: '100%',
-                                padding: '10px',
-                                marginTop: '10px',
-                                background: '#17a2b8',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '4px',
-                                cursor: 'pointer',
-                                fontWeight: 'bold'
-                            }}
-                        >
-                            📋 Reitergruppe laden
-                        </button>
+                        <button type="button" onClick={() => setShowGroupSelector(true)} style={{
+                            width: '100%', padding: '10px', marginTop: '10px',
+                            background: '#17a2b8', color: 'white', border: 'none',
+                            borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'
+                        }}>📋 Reitergruppe laden</button>
 
                         <hr/>
 
-                        <h4>Reiter in der Gruppe ({formState.assignmentRows.length})</h4>
+                        <h4>Reiter in der Gruppe ({formState.assignmentRows.filter(r => !r.isCancelled).length}/{formState.assignmentRows.length})</h4>
                         {formState.assignmentRows.length === 0 && <p style={{color: '#6c757d'}}>Reiter aus der Liste (rechts) hinzufügen oder Gruppe laden.</p>}
                         {formState.assignmentRows.map((row, index) => (
-                            <div key={row.student.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '10px', alignItems: 'baseline' }}>
-                                <span style={{fontWeight: 'bold', padding: '8px', background: '#e9ecef', borderRadius: '4px'}}>{row.student.name}</span>
-                                <select value={row.horse_id} onChange={e => handleHorseChange(index, e.target.value)} required>
+                            <div key={row.student.id} style={{
+                                display: 'grid', gridTemplateColumns: 'auto 1fr 1fr auto',
+                                gap: '10px', alignItems: 'center', marginBottom: '10px',
+                                opacity: row.isCancelled ? 0.5 : 1
+                            }}>
+                                {selectedGroupForLoad && (
+                                    <input
+                                        type="checkbox"
+                                        checked={!row.isCancelled}
+                                        onChange={() => handleToggleCancellation(row.student.id, index)}
+                                        title={row.isCancelled ? 'Abgesagt - klicken zum Aktivieren' : 'Aktiv - klicken zum Absagen'}
+                                    />
+                                )}
+                                <span style={{
+                                    fontWeight: 'bold', padding: '8px',
+                                    background: row.isCancelled ? '#ffebee' : '#e9ecef',
+                                    borderRadius: '4px',
+                                    textDecoration: row.isCancelled ? 'line-through' : 'none'
+                                }}>{row.student.name}</span>
+                                <select
+                                    value={row.horse_id}
+                                    onChange={e => handleHorseChange(index, e.target.value)}
+                                    required={!row.isCancelled}
+                                    disabled={row.isCancelled}
+                                >
                                     <option value="">-- Pferd zuweisen --</option>
                                     {row.horse_id && <option value={row.horse_id}>{allHorses.find(h => h.id === row.horse_id)?.name}</option>}
-                                    {availableHorsesForDropdown.filter(h => !assignedHorseIdsInForm.has(h.id)).map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
+                                    {availableHorsesForDropdown.filter(h => !assignedHorseIdsInForm.has(h.id)).map(h =>
+                                        <option key={h.id} value={h.id}>{h.name}</option>
+                                    )}
                                 </select>
-                                <button type="button" onClick={() => handleRemoveRiderFromGroup(row.student.id)} style={{background: '#dc3545', color: 'white', border: 'none', borderRadius: '50%', width: '30px', height: '30px', cursor: 'pointer', fontSize: '25px', textAlign: 'center'}}>&times;</button>
+                                <button type="button" onClick={() => handleRemoveRiderFromGroup(row.student.id)} style={{
+                                    background: '#dc3545', color: 'white', border: 'none',
+                                    borderRadius: '50%', width: '30px', height: '30px',
+                                    cursor: 'pointer', fontSize: '25px'
+                                }}>×</button>
                             </div>
                         ))}
 
                         <div style={{display: 'flex', gap: '10px', marginTop: '20px'}}>
-                            <button className="submit-btn" type="submit" disabled={formState.assignmentRows.length === 0}>
+                            <button className="submit-btn" type="submit" disabled={formState.assignmentRows.filter(r => !r.isCancelled).length === 0}>
                                 {isEditing ? 'Änderungen speichern' : 'Zur Stunde hinzufügen'}
                             </button>
                             {isEditing && (

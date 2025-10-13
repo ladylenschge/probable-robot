@@ -235,14 +235,21 @@ async function fetchFullSchedule(date: string): Promise<IDailyScheduleSlot[]> {
     const schedule: IDailyScheduleSlot[] = [];
 
     for (const slot of slots) {
+        // Lade nur nicht-abgesagte Teilnehmer
         const participants = dbQuery(`
             SELECT p.student_id, s.name as student_name, p.horse_id, h.name as horse_name
             FROM schedule_participants p
-            JOIN students s ON p.student_id = s.id
-            JOIN horses h ON p.horse_id = h.id
-            WHERE p.schedule_id = ?`, [slot.id]);
+                     JOIN students s ON p.student_id = s.id
+                     JOIN horses h ON p.horse_id = h.id
+                     LEFT JOIN group_cancellations gc ON gc.student_id = p.student_id AND gc.date = ?
+            WHERE p.schedule_id = ?
+              AND gc.id IS NULL
+        `, [date, slot.id]);
 
-        schedule.push({ ...slot, participants });
+        // Nur Slots mit Teilnehmern hinzufügen
+        if (participants.length > 0) {
+            schedule.push({ ...slot, participants });
+        }
     }
     return schedule;
 }

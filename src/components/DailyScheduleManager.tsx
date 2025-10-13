@@ -119,30 +119,38 @@ export const DailyScheduleManager = () => {
                 isCancelled: result.cancellations.includes(student.id)
             }));
 
-        const group = groupsForDate.find(g => g.id === groupId);
+        const group = groupsForDate.find(g => g.id === groupId) || riderGroups.find(g => g.id === groupId);
         if (group) {
             setFormState(prev => ({
                 ...prev,
                 time: group.time,
                 assignmentRows: [...prev.assignmentRows, ...newRows]
             }));
+            setSelectedGroupForLoad(groupId);
         }
 
         setShowGroupSelector(false);
-        setSelectedGroupForLoad(null);
         setErrorMessage(null);
     };
 
     const handleToggleCancellation = async (studentId: number, rowIndex: number) => {
-        if (!selectedGroupForLoad) return;
+        if (!selectedGroupForLoad) {
+            setErrorMessage('Absagen können nur für geladene Gruppen gesetzt werden');
+            return;
+        }
 
-        const isCancelled = await window.api.toggleCancellation(selectedGroupForLoad, studentId, date);
+        try {
+            const isCancelled = await window.api.toggleCancellation(selectedGroupForLoad, studentId, date);
 
-        setFormState(prev => {
-            const newRows = [...prev.assignmentRows];
-            newRows[rowIndex] = { ...newRows[rowIndex], isCancelled };
-            return { ...prev, assignmentRows: newRows };
-        });
+            setFormState(prev => {
+                const newRows = [...prev.assignmentRows];
+                newRows[rowIndex] = { ...newRows[rowIndex], isCancelled };
+                return { ...prev, assignmentRows: newRows };
+            });
+        } catch (error) {
+            console.error('Error toggling cancellation:', error);
+            setErrorMessage('Fehler beim Speichern der Absage');
+        }
     };
 
     const handleAddRiderToGroup = (student: IStudent) => {
@@ -458,24 +466,32 @@ export const DailyScheduleManager = () => {
                         {formState.assignmentRows.length === 0 && <p style={{color: '#6c757d'}}>Reiter aus der Liste (rechts) hinzufügen oder Gruppe laden.</p>}
                         {formState.assignmentRows.map((row, index) => (
                             <div key={row.student.id} style={{
-                                display: 'grid', gridTemplateColumns: 'auto 1fr 1fr auto',
+                                display: 'grid',
+                                gridTemplateColumns: selectedGroupForLoad ? 'auto 1fr 1fr auto' : '1fr 1fr auto',
                                 gap: '10px', alignItems: 'center', marginBottom: '10px',
                                 opacity: row.isCancelled ? 0.5 : 1
                             }}>
                                 {selectedGroupForLoad && (
+                                    <label htmlFor="isCancelled">Abgesagt?
                                     <input
+                                        id="isCancelled"
                                         type="checkbox"
                                         checked={!row.isCancelled}
                                         onChange={() => handleToggleCancellation(row.student.id, index)}
                                         title={row.isCancelled ? 'Abgesagt - klicken zum Aktivieren' : 'Aktiv - klicken zum Absagen'}
+                                        style={{width: '20px', height: '20px'}}
                                     />
+                                    </label>
                                 )}
                                 <span style={{
                                     fontWeight: 'bold', padding: '8px',
                                     background: row.isCancelled ? '#ffebee' : '#e9ecef',
                                     borderRadius: '4px',
                                     textDecoration: row.isCancelled ? 'line-through' : 'none'
-                                }}>{row.student.name}</span>
+                                }}>
+                                    {row.isCancelled && '🚫 '}
+                                    {row.student.name}
+                                </span>
                                 <select
                                     value={row.horse_id}
                                     onChange={e => handleHorseChange(index, e.target.value)}

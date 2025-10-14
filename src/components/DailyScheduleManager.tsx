@@ -49,8 +49,14 @@ export const DailyScheduleManager = () => {
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [showGroupSelector, setShowGroupSelector] = useState(false);
     const [selectedGroupForLoad, setSelectedGroupForLoad] = useState<number | null>(null);
-    const isEditing = formState.id !== null;
 
+    // Neue States für Absagen-Verwaltung
+    const [showCancellationManager, setShowCancellationManager] = useState(false);
+    const [selectedCancellationGroup, setSelectedCancellationGroup] = useState<IRiderGroup | null>(null);
+    const [cancellationMembers, setCancellationMembers] = useState<IRiderGroupMember[]>([]);
+    const [cancellations, setCancellations] = useState<number[]>([]);
+
+    const isEditing = formState.id !== null;
     const weekDayNames = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
 
     useEffect(() => {
@@ -77,9 +83,42 @@ export const DailyScheduleManager = () => {
         }
     }, [date]);
 
+    useEffect(() => {
+        if (selectedCancellationGroup && showCancellationManager) {
+            loadCancellationData();
+        }
+    }, [selectedCancellationGroup, date, showCancellationManager]);
+
     const loadGroupsForDate = async (forDate: string) => {
         const groups = await window.api.getGroupsForDate(forDate);
         setGroupsForDate(groups);
+    };
+
+    const loadCancellationData = async () => {
+        if (!selectedCancellationGroup) return;
+
+        const members = await window.api.getGroupMembers(selectedCancellationGroup.id);
+        setCancellationMembers(members);
+
+        const cancelled = await window.api.getCancellationsForDate(selectedCancellationGroup.id, date);
+        setCancellations(cancelled);
+    };
+
+    const handleToggleCancellationInManager = async (studentId: number) => {
+        if (!selectedCancellationGroup) return;
+
+        try {
+            const isCancelled = await window.api.toggleCancellation(selectedCancellationGroup.id, studentId, date);
+
+            if (isCancelled) {
+                setCancellations([...cancellations, studentId]);
+            } else {
+                setCancellations(cancellations.filter(id => id !== studentId));
+            }
+        } catch (error) {
+            console.error('Error toggling cancellation:', error);
+            setErrorMessage('Fehler beim Speichern der Absage');
+        }
     };
 
     const assignedStudentIds = useMemo(() =>
@@ -182,17 +221,55 @@ export const DailyScheduleManager = () => {
         });
     };
 
-    const handleEditClick = (slot: IDailyScheduleSlot) => {
+    const handleEditClick = async (slot: IDailyScheduleSlot) => {
+        const groupsForThisDay = await window.api.getGroupsForDate(date);
+        const matchingGroup = groupsForThisDay.find(g => g.time === slot.time);
+
+        let allRows: AssignmentRow[];
+
+        if (matchingGroup) {
+            const groupData = await window.api.loadGroupForSchedule(matchingGroup.id, date);
+
+            allRows = groupData.students
+                .map(m => {
+                    const student = allStudents.find(s => s.id === m.student_id);
+                    if (!student) return null;
+
+                    const participant = slot.participants.find(p => p.student_id === student.id);
+
+                    return {
+                        student,
+                        horse_id: participant?.horse_id || ('' as '' | number),
+                        isCancelled: groupData.cancellations.includes(student.id) as boolean | undefined
+                    };
+                })
+                .filter((r): r is NonNullable<typeof r> => r !== null);
+
+            setSelectedGroupForLoad(matchingGroup.id);
+        } else {
+            allRows = slot.participants
+                .map(p => {
+                    const student = allStudents.find(s => s.id === p.student_id);
+                    if (!student) return null;
+
+                    return {
+                        student,
+                        horse_id: p.horse_id,
+                        isCancelled: false as boolean | undefined
+                    };
+                })
+                .filter((r): r is NonNullable<typeof r> => r !== null);
+
+            setSelectedGroupForLoad(null);
+        }
+
         setFormState({
             id: slot.id,
             time: slot.time,
             isSingleLesson: slot.participants.length === 1,
-            assignmentRows: slot.participants.map(p => ({
-                student: allStudents.find(s => s.id === p.student_id)!,
-                horse_id: p.horse_id,
-                isCancelled: false
-            })),
+            assignmentRows: allRows,
         });
+
         window.scrollTo(0, 0);
     };
 
@@ -205,7 +282,6 @@ export const DailyScheduleManager = () => {
         e.preventDefault();
         const { id, time, isSingleLesson, assignmentRows } = formState;
 
-        // Nur nicht-abgesagte Reiter
         const activeRows = assignmentRows.filter(row => !row.isCancelled);
         const completePairs = activeRows.filter(row => row.horse_id !== '');
 
@@ -398,8 +474,186 @@ export const DailyScheduleManager = () => {
                 </div>
             )}
 
+            {/* Absagen-Verwaltungs-Modal */}
+            {showCancellationManager && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0,0,0,0.5)', display: 'flex',
+                    alignItems: 'center', justifyContent: 'center', zIndex: 1000
+                }}>
+                    <div style={{
+                        background: 'white', padding: '30px', borderRadius: '8px',
+                        maxWidth: '700px', maxHeight: '80vh', overflowY: 'auto',
+                        boxShadow: '0 4px 6px rgba(0,0,0,0.1)', width: '90%'
+                    }}>
+                        <h2 style={{marginTop: 0}}>🚫 Absagen verwalten für {formatDate(date)}</h2>
+
+                        {!selectedCancellationGroup ? (
+                            <>
+                                <p style={{color: '#6c757d'}}>Wähle eine Gruppe aus, um Absagen zu verwalten:</p>
+                                {groupsForDate.length === 0 ? (
+                                    <p style={{color: '#999', textAlign: 'center', padding: '20px'}}>
+                                        Keine Gruppen für diesen Wochentag ({weekDayNames[new Date(date).getDay()]})
+                                    </p>
+                                ) : (
+                                    groupsForDate.map(group => (
+                                        <div
+                                            key={group.id}
+                                            onClick={() => setSelectedCancellationGroup(group)}
+                                            style={{
+                                                padding: '15px', marginBottom: '10px',
+                                                background: '#f8f9fa', border: '2px solid #ddd',
+                                                borderRadius: '8px', cursor: 'pointer'
+                                            }}
+                                            onMouseEnter={e => e.currentTarget.style.borderColor = '#007bff'}
+                                            onMouseLeave={e => e.currentTarget.style.borderColor = '#ddd'}
+                                        >
+                                            <strong style={{fontSize: '1.1em'}}>{group.name}</strong>
+                                            <div style={{fontSize: '0.9em', color: '#6c757d', marginTop: '5px'}}>
+                                                {group.time} Uhr
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </>
+                        ) : (
+                            <>
+                                <div style={{
+                                    background: '#e7f3ff', padding: '15px', borderRadius: '8px',
+                                    marginBottom: '20px', border: '1px solid #007bff'
+                                }}>
+                                    <h3 style={{margin: '0 0 10px 0'}}>{selectedCancellationGroup.name}</h3>
+                                    <p style={{margin: 0, color: '#0066cc'}}>
+                                        {weekDayNames[selectedCancellationGroup.weekday]}, {selectedCancellationGroup.time} Uhr
+                                    </p>
+                                </div>
+
+                                <div style={{
+                                    background: '#fff3cd', border: '1px solid #ffc107',
+                                    padding: '12px', borderRadius: '4px', marginBottom: '20px'
+                                }}>
+                                    <strong>ℹ️ Hinweis:</strong> Absagen gelten nur für {formatDate(date)}
+                                </div>
+
+                                {cancellationMembers.length === 0 ? (
+                                    <p style={{color: '#6c757d', textAlign: 'center', padding: '20px'}}>
+                                        Keine Reiter in dieser Gruppe
+                                    </p>
+                                ) : (
+                                    <>
+                                        {cancellationMembers.map(member => {
+                                            const isCancelled = cancellations.includes(member.student_id);
+                                            return (
+                                                <div
+                                                    key={member.student_id}
+                                                    style={{
+                                                        display: 'flex',
+                                                        justifyContent: 'space-between',
+                                                        alignItems: 'center',
+                                                        padding: '15px',
+                                                        marginBottom: '10px',
+                                                        background: isCancelled ? '#ffebee' : '#e9ecef',
+                                                        borderRadius: '8px',
+                                                        border: isCancelled ? '2px solid #dc3545' : '2px solid #ddd'
+                                                    }}
+                                                >
+                                                    <div style={{display: 'flex', alignItems: 'center', gap: '15px'}}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={!isCancelled}
+                                                            onChange={() => handleToggleCancellationInManager(member.student_id)}
+                                                            style={{width: '24px', height: '24px', cursor: 'pointer'}}
+                                                        />
+                                                        <span style={{
+                                                            fontWeight: 'bold',
+                                                            fontSize: '1.1em',
+                                                            textDecoration: isCancelled ? 'line-through' : 'none'
+                                                        }}>
+                                                            {isCancelled && '🚫 '}
+                                                            {member.student_name}
+                                                        </span>
+                                                    </div>
+                                                    <span style={{
+                                                        fontSize: '1em',
+                                                        color: isCancelled ? '#dc3545' : '#28a745',
+                                                        fontWeight: 'bold',
+                                                        padding: '5px 15px',
+                                                        borderRadius: '20px',
+                                                        background: isCancelled ? '#ffe0e0' : '#d4edda'
+                                                    }}>
+                                                        {isCancelled ? 'Abgesagt' : 'Aktiv'}
+                                                    </span>
+                                                </div>
+                                            );
+                                        })}
+
+                                        <div style={{
+                                            marginTop: '20px',
+                                            padding: '15px',
+                                            background: '#e7f3ff',
+                                            borderRadius: '8px',
+                                            border: '1px solid #007bff'
+                                        }}>
+                                            <strong>📊 Zusammenfassung:</strong>
+                                            <div style={{marginTop: '8px'}}>
+                                                • Teilnehmer gesamt: {cancellationMembers.length}<br/>
+                                                • Abgesagt: {cancellations.length}<br/>
+                                                • Aktiv: {cancellationMembers.length - cancellations.length}
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+
+                                <button
+                                    onClick={() => setSelectedCancellationGroup(null)}
+                                    style={{
+                                        marginTop: '15px',
+                                        padding: '10px 20px',
+                                        background: '#6c757d',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: '4px',
+                                        cursor: 'pointer',
+                                        width: '100%'
+                                    }}
+                                >
+                                    ← Zurück zur Gruppenauswahl
+                                </button>
+                            </>
+                        )}
+
+                        <button
+                            onClick={() => {
+                                setShowCancellationManager(false);
+                                setSelectedCancellationGroup(null);
+                            }}
+                            style={{
+                                marginTop: '10px',
+                                padding: '10px 20px',
+                                background: '#007bff',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                width: '100%',
+                                fontWeight: 'bold'
+                            }}
+                        >
+                            Fertig
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <div className="toolbar" style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '20px', flexWrap: 'wrap' }}>
                 <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{width: 'auto'}} />
+                <button
+                    className="submit-btn"
+                    onClick={() => setShowCancellationManager(true)}
+                    style={{background: '#ff9800'}}
+                >
+                    🚫 Absagen verwalten
+                </button>
                 <button className="submit-btn" onClick={handlePrint} disabled={schedule.length === 0}>
                     Tagesübersicht drucken
                 </button>
@@ -408,7 +662,6 @@ export const DailyScheduleManager = () => {
                 </button>
             </div>
 
-            {/* Gruppen für diesen Tag */}
             {groupsForDate.length > 0 && (
                 <div style={{
                     background: '#e7f3ff', padding: '15px', borderRadius: '8px',
@@ -463,6 +716,11 @@ export const DailyScheduleManager = () => {
                         <hr/>
 
                         <h4>Reiter in der Gruppe ({formState.assignmentRows.filter(r => !r.isCancelled).length}/{formState.assignmentRows.length})</h4>
+                        {selectedGroupForLoad && formState.assignmentRows.length > 0 && (
+                            <p style={{fontSize: '0.9em', color: '#6c757d', marginBottom: '10px'}}>
+                                ℹ️ Checkbox = An/Absage für diesen Tag • Abgesagte werden nicht gespeichert
+                            </p>
+                        )}
                         {formState.assignmentRows.length === 0 && <p style={{color: '#6c757d'}}>Reiter aus der Liste (rechts) hinzufügen oder Gruppe laden.</p>}
                         {formState.assignmentRows.map((row, index) => (
                             <div key={row.student.id} style={{
@@ -472,16 +730,13 @@ export const DailyScheduleManager = () => {
                                 opacity: row.isCancelled ? 0.5 : 1
                             }}>
                                 {selectedGroupForLoad && (
-                                    <label htmlFor="isCancelled">Abgesagt?
                                     <input
-                                        id="isCancelled"
                                         type="checkbox"
                                         checked={!row.isCancelled}
                                         onChange={() => handleToggleCancellation(row.student.id, index)}
                                         title={row.isCancelled ? 'Abgesagt - klicken zum Aktivieren' : 'Aktiv - klicken zum Absagen'}
                                         style={{width: '20px', height: '20px'}}
                                     />
-                                    </label>
                                 )}
                                 <span style={{
                                     fontWeight: 'bold', padding: '8px',

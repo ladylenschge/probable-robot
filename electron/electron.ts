@@ -110,7 +110,7 @@ export function initializeAutoUpdater(): void {
     });
 }
 
- function formatDate(isoString: string)  {
+function formatDate(isoString: string)  {
     const date = new Date(isoString);
     const day = String(date.getDate()).padStart(2, '0');
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -230,21 +230,25 @@ function createWindow() {
     if (!isPackaged) win.webContents.openDevTools();
 }
 
+// ============= FETCHFULLSCHEDULE MIT MONATSKARTEN-INFO =============
 async function fetchFullSchedule(date: string): Promise<IDailyScheduleSlot[]> {
     const slots = dbQuery('SELECT * FROM daily_schedules WHERE date = ?', [date]);
     const schedule: IDailyScheduleSlot[] = [];
 
     for (const slot of slots) {
-        // Lade nur nicht-abgesagte Teilnehmer
+        // Lade nur nicht-abgesagte Teilnehmer + Monatskarten-Info
         const participants = dbQuery(`
-            SELECT p.student_id, s.name as student_name, p.horse_id, h.name as horse_name
+            SELECT p.student_id, s.name as student_name, p.horse_id, h.name as horse_name,
+                   COALESCE(MAX(l.is_monthly_card), 0) as is_monthly_card
             FROM schedule_participants p
                      JOIN students s ON p.student_id = s.id
                      JOIN horses h ON p.horse_id = h.id
+                     LEFT JOIN lessons l ON l.student_id = p.student_id AND l.date = ? AND l.horse_id = p.horse_id
                      LEFT JOIN group_cancellations gc ON gc.student_id = p.student_id AND gc.date = ?
             WHERE p.schedule_id = ?
               AND gc.id IS NULL
-        `, [date, slot.id]);
+            GROUP BY p.student_id, p.horse_id
+        `, [date, date, slot.id]);
 
         // Nur Slots mit Teilnehmern hinzufügen
         if (participants.length > 0) {
@@ -349,33 +353,41 @@ ipcMain.handle('print-daily-schedule', async (e, date: string) => {
     await generateDailySchedulePDF(date, groupedByTime);
 });
 
-
-ipcMain.handle('add-schedule-slot', async (e, slot: Omit<IDailyScheduleSlot, 'id'>, is_single_lesson): Promise<IDailyScheduleSlot> => {
+// ============= ADD-SCHEDULE-SLOT MIT MONATSKARTEN PRO REITER =============
+ipcMain.handle('add-schedule-slot', async (e, slot: Omit<IDailyScheduleSlot, 'id'>, is_single_lesson: boolean): Promise<IDailyScheduleSlot> => {
     dbRun('BEGIN TRANSACTION');
-    let singleLesson = 0;
-    if(is_single_lesson){
-        singleLesson = 1;
-    }
+    const singleLesson = is_single_lesson ? 1 : 0;
+
     try {
         const scheduleResult = dbRun('INSERT INTO daily_schedules (date, time) VALUES (?, ?)', [slot.date, slot.time]);
         const scheduleId =  scheduleResult.lastInsertRowid;
 
         for (const p of slot.participants) {
             dbRun('INSERT INTO schedule_participants (schedule_id, student_id, horse_id) VALUES (?, ?, ?)', [scheduleId, p.student_id, p.horse_id]);
-            const countResultBefore = dbQuery('SELECT COUNT(*) as count FROM lessons WHERE student_id = ?', [p.student_id]);
+
+            // Monatskarten-Flag pro Reiter
+            const monthlyCard = (p as any).is_monthly_card ? 1 : 0;
+
+            // Zähle nur 10er-Karten-Stunden (keine Einzelstunden, keine Monatskarten)
+            const countResultBefore = dbQuery('SELECT COUNT(*) as count FROM lessons WHERE student_id = ? AND is_single_lesson = 0 AND is_monthly_card = 0', [p.student_id]);
             const countBefore = countResultBefore[0]?.count || 0;
 
             dbRun(
-                'INSERT INTO lessons (student_id, horse_id, date, notes, is_single_lesson) VALUES (?, ?, ?, ?, ?)',
-                [p.student_id, p.horse_id, slot.date, '', singleLesson]
+                'INSERT INTO lessons (student_id, horse_id, date, notes, is_single_lesson, is_monthly_card) VALUES (?, ?, ?, ?, ?, ?)',
+                [p.student_id, p.horse_id, slot.date, '', singleLesson, monthlyCard]
             );
 
-            const countAfter = countBefore + 1;
-            const milestonesBefore = Math.floor(countBefore / 10);
-            const milestonesAfter = Math.floor(countAfter / 10);
+            // Nur 10er-Karten-Meilensteine zählen
+            if (!is_single_lesson && !monthlyCard) {
+                const countAfter = countBefore + 1;
+                const milestonesBefore = Math.floor(countBefore / 10);
+                const milestonesAfter = Math.floor(countAfter / 10);
 
-            if (milestonesAfter > milestonesBefore) {
-                console.log(`MILESTONE CROSSED (from group lesson): Student ${p.student_id} reached ${countAfter} lessons.`);
+                if (milestonesAfter > milestonesBefore) {
+                    console.log(`✅ MILESTONE CROSSED: Student ${p.student_id} reached ${countAfter} lessons on 10er-Karte.`);
+                }
+            } else if (monthlyCard) {
+                console.log(`📅 Monthly card lesson added for student ${p.student_id} - not counted towards 10er-Karte`);
             }
         }
 
@@ -387,24 +399,24 @@ ipcMain.handle('add-schedule-slot', async (e, slot: Omit<IDailyScheduleSlot, 'id
     } catch (err) {
         dbRun('ROLLBACK');
         console.error('Transaction Error in add-schedule-slot:', err);
-        throw err; // Rethrow the error to the frontend so it can be handled.
+        throw err;
     }
 });
 
 ipcMain.handle('delete-schedule-slot', async (e, scheduleId: number) => {
     console.log(`Attempting to delete schedule slot with ID: ${scheduleId}`);
-
     dbRun('DELETE FROM daily_schedules WHERE id = ?', [scheduleId]);
 });
+
 ipcMain.handle('delete-schedule-participant', async (e, scheduleId: number, studentId: number) => {
     console.log(`Attempting to delete student ${studentId} from schedule slot ${scheduleId}`);
-
     dbRun(
         'DELETE FROM schedule_participants WHERE schedule_id = ? AND student_id = ?',
         [scheduleId, studentId]
     );
 });
 
+// ============= GENERATE STUDENT REPORT PDF - NUR 10ER-KARTEN =============
 async function generateStudentReportPDF(studentId: number, milestone: number) {
     const studentArr: IStudent[] = dbQuery('SELECT name, isMember FROM students WHERE id = ?', [studentId]);
     const schoolInfoResults= dbQuery(`SELECT * FROM school_info where id = 1`);
@@ -419,7 +431,6 @@ async function generateStudentReportPDF(studentId: number, milestone: number) {
     const iban = schoolInfo?.iban || '';
     const blz = schoolInfo?.blz || '';
 
-
     if (!studentArr.length) return;
     const studentName = studentArr[0].name;
     let isMember = studentArr[0].isMember;
@@ -429,16 +440,16 @@ async function generateStudentReportPDF(studentId: number, milestone: number) {
     }
 
     const offset = milestone - 10; // Get the correct block of 10
+    // NUR 10er-Karten-Stunden (keine Einzelstunden, keine Monatskarten)
     const lessonDetails: ILesson[] = dbQuery(
         `SELECT l.date, h.name as horse_name, l.notes
          FROM lessons l
-         JOIN horses h ON l.horse_id = h.id
-         WHERE l.student_id = ?
+                  JOIN horses h ON l.horse_id = h.id
+         WHERE l.student_id = ? AND l.is_single_lesson = 0 AND l.is_monthly_card = 0
          ORDER BY l.date ASC
          LIMIT 10 OFFSET ?`,
         [studentId, offset]
     );
-
 
     // 2. Setup PDF
     const desktopPath = app.getPath('desktop');
@@ -450,7 +461,6 @@ async function generateStudentReportPDF(studentId: number, milestone: number) {
     doc.font('Helvetica-Bold').fontSize(20).text(`${schoolName}`, { align: 'center' });
     doc.fontSize(7).text(`${streetAddress} ${zipCode} - Tel.: ${phoneNumber}`, { align: 'center' });
     doc.moveDown(0.5)
-    // doc.moveTo(100, 200).lineTo(500, 200).stroke();
     doc.fontSize(12).text(`Reitkarte`, { align: 'center' });
     doc.moveDown(0.5);
     doc.fontSize(9).text(`Für: ${studentName}`, 20, doc.y, { align: 'left', lineBreak: false });
@@ -514,13 +524,13 @@ async function generateStudentReportPDF(studentId: number, milestone: number) {
     shell.openPath(filePath);
 }
 
-
-
+// ============= GET-AVAILABLE-REPORTS - NUR 10ER-KARTEN =============
 ipcMain.handle('get-available-reports', async (): Promise<IStudentReportInfo[]> => {
+    // Nur 10er-Karten-Stunden zählen (keine Einzelstunden, keine Monatskarten)
     const query = `
         SELECT l.student_id, s.name as student_name, COUNT(l.id) as total_lessons
         FROM lessons l JOIN students s ON l.student_id = s.id
-        WHERE l.is_single_lesson = 0
+        WHERE l.is_single_lesson = 0 AND l.is_monthly_card = 0
         GROUP BY l.student_id
         ORDER BY s.name
     `;
@@ -577,10 +587,8 @@ ipcMain.handle('print-student-report', async (e, studentId: number, milestone: n
     dbRun(
         'INSERT OR IGNORE INTO printed_reports_log (student_id, milestone, date_printed) VALUES (?, ?, ?)',
         [studentId, milestone, currentDate]
-    );});
-
-
-
+    );
+});
 
 ipcMain.handle('get-school-info', async (): Promise<ISchoolInfo | null> => {
     const results = dbQuery('SELECT * FROM school_info WHERE id = 1');
@@ -606,8 +614,11 @@ ipcMain.handle('update-school-info', async (e, info: ISchoolInfo) => {
     dbRun(query, [school_name, street_address, zip_code, phone_number, bank_name, iban, blz, price_10_card_members, price_10_card_nonMembers]);
 });
 
-ipcMain.handle('update-schedule-slot', async (e, slot: IDailyScheduleSlot) => {
+// ============= UPDATE-SCHEDULE-SLOT MIT MONATSKARTEN =============
+ipcMain.handle('update-schedule-slot', async (e, slot: IDailyScheduleSlot, is_monthly_lesson: boolean) => {
     dbRun('BEGIN TRANSACTION');
+    const monthlyLesson = is_monthly_lesson ? 1 : 0;
+
     try {
         // Step 1: Update the main slot information (time, group name).
         dbRun('UPDATE daily_schedules SET date = ?, time = ? WHERE id = ?', [
@@ -615,6 +626,20 @@ ipcMain.handle('update-schedule-slot', async (e, slot: IDailyScheduleSlot) => {
             slot.time,
             slot.id
         ]);
+
+        // Step 2: Aktualisiere die Lessons mit is_monthly_card Flag
+        // Zuerst hole die aktuellen Lessons für diesen Slot
+        const existingLessons = dbQuery(`
+            SELECT l.id, l.student_id
+            FROM lessons l
+            JOIN schedule_participants sp ON sp.student_id = l.student_id AND sp.schedule_id = ?
+            WHERE l.date = ?
+        `, [slot.id, slot.date]);
+
+        // Aktualisiere is_monthly_card für existierende Lessons
+        for (const lesson of existingLessons) {
+            dbRun('UPDATE lessons SET is_monthly_card = ? WHERE id = ?', [monthlyLesson, lesson.id]);
+        }
 
         dbRun('DELETE FROM schedule_participants WHERE schedule_id = ?', [slot.id]);
 
@@ -646,6 +671,7 @@ ipcMain.handle('update-schedule-slot', async (e, slot: IDailyScheduleSlot) => {
         throw err;
     }
 });
+
 // ============= RIDER GROUPS - ERWEITERT =============
 
 // Alle Reitergruppen abrufen
@@ -799,9 +825,7 @@ ipcMain.handle('load-group-for-schedule', async (e, groupId: number, date: strin
 // App Lifecycle
 app.whenReady().then(() => {
     createWindow();
-
-        initializeAutoUpdater();
-
+    initializeAutoUpdater();
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {

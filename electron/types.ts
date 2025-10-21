@@ -18,6 +18,7 @@ export interface ILesson {
     date: string;
     notes: string;
     is_single_lesson: boolean;
+    is_monthly_card?: number;
     student_name?: string;
     horse_name?: string;
 }

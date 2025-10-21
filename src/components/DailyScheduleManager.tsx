@@ -5,6 +5,7 @@ type AssignmentRow = {
     student: IStudent;
     horse_id: number | '';
     isCancelled?: boolean;
+    isMonthlyCard?: boolean;
 };
 
 const initialFormState = {
@@ -155,7 +156,8 @@ export const DailyScheduleManager = () => {
             .map(student => ({
                 student,
                 horse_id: '' as '' | number,
-                isCancelled: result.cancellations.includes(student.id)
+                isCancelled: result.cancellations.includes(student.id),
+                isMonthlyCard: false
             }));
 
         const group = groupsForDate.find(g => g.id === groupId) || riderGroups.find(g => g.id === groupId);
@@ -183,8 +185,8 @@ export const DailyScheduleManager = () => {
 
             setFormState(prev => {
                 const newRows = [...prev.assignmentRows];
-                newRows[rowIndex] = { ...newRows[rowIndex], isCancelled };
-                return { ...prev, assignmentRows: newRows };
+                newRows[rowIndex] = {...newRows[rowIndex], isCancelled};
+                return {...prev, assignmentRows: newRows};
             });
         } catch (error) {
             console.error('Error toggling cancellation:', error);
@@ -192,10 +194,26 @@ export const DailyScheduleManager = () => {
         }
     };
 
+    const handleToggleMonthlyCard = (rowIndex: number) => {
+        setFormState(prev => {
+            const newRows = [...prev.assignmentRows];
+            newRows[rowIndex] = {
+                ...newRows[rowIndex],
+                isMonthlyCard: !newRows[rowIndex].isMonthlyCard
+            };
+            return {...prev, assignmentRows: newRows};
+        });
+    };
+
     const handleAddRiderToGroup = (student: IStudent) => {
         setFormState(prev => ({
             ...prev,
-            assignmentRows: [...prev.assignmentRows, { student: student, horse_id: '', isCancelled: false }]
+            assignmentRows: [...prev.assignmentRows, {
+                student: student,
+                horse_id: '',
+                isCancelled: false,
+                isMonthlyCard: false
+            }]
         }));
     };
 
@@ -213,11 +231,11 @@ export const DailyScheduleManager = () => {
             if (newHorseId !== '') {
                 const otherRowIndex = newRows.findIndex(row => row.horse_id === newHorseId);
                 if (otherRowIndex > -1 && otherRowIndex !== rowIndex) {
-                    newRows[otherRowIndex] = { ...newRows[otherRowIndex], horse_id: '' };
+                    newRows[otherRowIndex] = {...newRows[otherRowIndex], horse_id: ''};
                 }
             }
-            newRows[rowIndex] = { ...newRows[rowIndex], horse_id: newHorseId };
-            return { ...currentFormState, assignmentRows: newRows };
+            newRows[rowIndex] = {...newRows[rowIndex], horse_id: newHorseId};
+            return {...currentFormState, assignmentRows: newRows};
         });
     };
 
@@ -240,7 +258,8 @@ export const DailyScheduleManager = () => {
                     return {
                         student,
                         horse_id: participant?.horse_id || ('' as '' | number),
-                        isCancelled: groupData.cancellations.includes(student.id) as boolean | undefined
+                        isCancelled: groupData.cancellations.includes(student.id) as boolean | undefined,
+                        isMonthlyCard: (participant as any)?.is_monthly_card === 1
                     };
                 })
                 .filter((r): r is NonNullable<typeof r> => r !== null);
@@ -255,7 +274,8 @@ export const DailyScheduleManager = () => {
                     return {
                         student,
                         horse_id: p.horse_id,
-                        isCancelled: false as boolean | undefined
+                        isCancelled: false as boolean | undefined,
+                        isMonthlyCard: (p as any).is_monthly_card === 1
                     };
                 })
                 .filter((r): r is NonNullable<typeof r> => r !== null);
@@ -280,7 +300,7 @@ export const DailyScheduleManager = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const { id, time, isSingleLesson, assignmentRows } = formState;
+        const {id, time, isSingleLesson, assignmentRows} = formState;
 
         const activeRows = assignmentRows.filter(row => !row.isCancelled);
         const completePairs = activeRows.filter(row => row.horse_id !== '');
@@ -303,11 +323,12 @@ export const DailyScheduleManager = () => {
                 horse_id: p.horse_id as number,
                 student_name: '',
                 horse_name: '',
+                is_monthly_card: p.isMonthlyCard || false
             })),
         };
 
         if (isEditing) {
-            await window.api.updateScheduleSlot({ id: id!, ...slotData });
+            await window.api.updateScheduleSlot({id: id!, ...slotData});
             fetchSchedule(date);
         } else {
             await window.api.addScheduleSlot(slotData, isSingleLesson);
@@ -349,7 +370,7 @@ export const DailyScheduleManager = () => {
                     const newSchedule = schedule.map(slot => {
                         if (slot.id === scheduleId) {
                             const updatedParticipants = slot.participants.filter(p => p.student_id !== studentId);
-                            return { ...slot, participants: updatedParticipants };
+                            return {...slot, participants: updatedParticipants};
                         }
                         return slot;
                     });
@@ -372,13 +393,16 @@ export const DailyScheduleManager = () => {
         window.api.printMonthlyGroups(year, month);
     };
 
-    const formatDate = (isoString: string) =>  {
+    const formatDate = (isoString: string) => {
         const date = new Date(isoString);
         const day = String(date.getDate()).padStart(2, '0');
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const year = date.getFullYear();
         return `${day}.${month}.${year}`;
     }
+
+    const monthlyCardCount = formState.assignmentRows.filter(r => !r.isCancelled && r.isMonthlyCard).length;
+    const regularCardCount = formState.assignmentRows.filter(r => !r.isCancelled && !r.isMonthlyCard).length;
 
     return (
         <div>
@@ -389,12 +413,13 @@ export const DailyScheduleManager = () => {
                     borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
                     zIndex: 1001, maxWidth: '400px'
                 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
                         <span>{errorMessage}</span>
                         <button onClick={() => setErrorMessage(null)} style={{
                             background: 'transparent', border: 'none', color: 'white',
                             fontSize: '20px', cursor: 'pointer', marginLeft: '10px'
-                        }}>×</button>
+                        }}>×
+                        </button>
                     </div>
                 </div>
             )}
@@ -409,17 +434,19 @@ export const DailyScheduleManager = () => {
                         background: 'white', padding: '20px', borderRadius: '8px',
                         maxWidth: '400px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
                     }}>
-                        <h3 style={{ marginTop: 0 }}>Bestätigen</h3>
+                        <h3 style={{marginTop: 0}}>Bestätigen</h3>
                         <p>{confirmDialog.message}</p>
-                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                        <div style={{display: 'flex', gap: '10px', justifyContent: 'flex-end'}}>
                             <button onClick={() => setConfirmDialog(null)} style={{
                                 padding: '8px 16px', background: '#6c757d', color: 'white',
                                 border: 'none', borderRadius: '4px', cursor: 'pointer'
-                            }}>Abbrechen</button>
+                            }}>Abbrechen
+                            </button>
                             <button onClick={confirmDialog.onConfirm} style={{
                                 padding: '8px 16px', background: '#dc3545', color: 'white',
                                 border: 'none', borderRadius: '4px', cursor: 'pointer'
-                            }}>Löschen</button>
+                            }}>Löschen
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -436,7 +463,7 @@ export const DailyScheduleManager = () => {
                         maxWidth: '500px', maxHeight: '80vh', overflowY: 'auto',
                         boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
                     }}>
-                        <h3 style={{ marginTop: 0 }}>Reitergruppe laden</h3>
+                        <h3 style={{marginTop: 0}}>Reitergruppe laden</h3>
                         {riderGroups.length === 0 ? (
                             <p style={{color: '#6c757d'}}>Keine Gruppen vorhanden.</p>
                         ) : (
@@ -460,7 +487,11 @@ export const DailyScheduleManager = () => {
                                         <div style={{fontSize: '0.9em', color: '#6c757d'}}>
                                             {weekDayNames[group.weekday]}, {group.time} Uhr
                                         </div>
-                                        {group.description && <div style={{fontSize: '0.85em', color: '#999', marginTop: '4px'}}>{group.description}</div>}
+                                        {group.description && <div style={{
+                                            fontSize: '0.85em',
+                                            color: '#999',
+                                            marginTop: '4px'
+                                        }}>{group.description}</div>}
                                     </div>
                                 ))}
                             </div>
@@ -469,7 +500,8 @@ export const DailyScheduleManager = () => {
                             marginTop: '15px', padding: '8px 16px', background: '#6c757d',
                             color: 'white', border: 'none', borderRadius: '4px',
                             cursor: 'pointer', width: '100%'
-                        }}>Abbrechen</button>
+                        }}>Abbrechen
+                        </button>
                     </div>
                 </div>
             )}
@@ -645,8 +677,9 @@ export const DailyScheduleManager = () => {
                 </div>
             )}
 
-            <div className="toolbar" style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '20px', flexWrap: 'wrap' }}>
-                <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{width: 'auto'}} />
+            <div className="toolbar"
+                 style={{display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '20px', flexWrap: 'wrap'}}>
+                <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{width: 'auto'}}/>
                 <button
                     className="submit-btn"
                     onClick={() => setShowCancellationManager(true)}
@@ -693,39 +726,85 @@ export const DailyScheduleManager = () => {
                 </div>
             )}
 
-            <div className="manager-container" style={{gridTemplateColumns: '2fr 1fr', alignItems: 'start', marginBottom: '40px'}}>
+            <div className="manager-container"
+                 style={{gridTemplateColumns: '2fr 1fr', alignItems: 'start', marginBottom: '40px'}}>
                 <div className="form-section">
                     <h2>{isEditing ? `Bearbeiten der Stunde von ${formState.time}` : 'Hinzufügen Stunde'}</h2>
                     <form onSubmit={handleSubmit}>
-                        <div style={{display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline'}}>
+                        <div style={{
+                            display: 'flex',
+                            flexDirection: 'row',
+                            justifyContent: 'space-between',
+                            alignItems: 'baseline'
+                        }}>
                             <input type="time" value={formState.time} style={{width: "auto"}}
                                    onChange={e => setFormState({...formState, time: e.target.value})} required/>
-                            <div style={{display: 'flex', flexDirection: 'row', alignItems: 'baseline'}}>
+                            <div style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
+                                <input
+                                    type="checkbox"
+                                    id="isSingleLesson"
+                                    checked={formState.isSingleLesson}
+                                    onChange={e => setFormState({...formState, isSingleLesson: e.target.checked})}
+                                    style={{width: 'auto'}}
+                                />
                                 <label htmlFor="isSingleLesson">Einzelstunde?</label>
-                                <input type="checkbox" id="isSingleLesson" checked={formState.isSingleLesson}
-                                       onChange={e => setFormState({...formState, isSingleLesson: e.target.checked})}/>
                             </div>
                         </div>
 
-                        <button type="button" onClick={() => setShowGroupSelector(true)} style={{
-                            width: '100%', padding: '10px', marginTop: '10px',
-                            background: '#17a2b8', color: 'white', border: 'none',
-                            borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'
-                        }}>📋 Reitergruppe laden</button>
+
+                        {(monthlyCardCount > 0 || regularCardCount > 0) && (
+                            <div style={{
+                                background: '#e7f3ff',
+                                border: '2px solid #007bff',
+                                padding: '12px',
+                                borderRadius: '8px',
+                                marginTop: '15px',
+                                fontSize: '0.9em'
+                            }}>
+                                <strong>📊 Kartentypen in dieser Stunde:</strong>
+                                <div style={{marginTop: '8px', display: 'flex', gap: '15px'}}>
+                                    {regularCardCount > 0 && (
+                                        <span style={{
+                                            padding: '4px 10px',
+                                            background: '#28a745',
+                                            color: 'white',
+                                            borderRadius: '12px',
+                                            fontSize: '0.9em'
+                                        }}>
+                                            🎫 {regularCardCount} × 10er-Karte
+                                        </span>
+                                    )}
+                                    {monthlyCardCount > 0 && (
+                                        <span style={{
+                                            padding: '4px 10px',
+                                            background: '#ff9800',
+                                            color: 'white',
+                                            borderRadius: '12px',
+                                            fontSize: '0.9em'
+                                        }}>
+                                            📅 {monthlyCardCount} × Monatskarte
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        )}
 
                         <hr/>
 
-                        <h4>Reiter in der Gruppe ({formState.assignmentRows.filter(r => !r.isCancelled).length}/{formState.assignmentRows.length})</h4>
+                        <h4>Reiter in der Gruppe
+                            ({formState.assignmentRows.filter(r => !r.isCancelled).length}/{formState.assignmentRows.length})</h4>
                         {selectedGroupForLoad && formState.assignmentRows.length > 0 && (
                             <p style={{fontSize: '0.9em', color: '#6c757d', marginBottom: '10px'}}>
-                                ℹ️ Checkbox = An/Absage für diesen Tag • Abgesagte werden nicht gespeichert
+                                ℹ️ ✓ = Teilnahme • 🚫 = Absage • 📅 = Monatskarte
                             </p>
                         )}
-                        {formState.assignmentRows.length === 0 && <p style={{color: '#6c757d'}}>Reiter aus der Liste (rechts) hinzufügen oder Gruppe laden.</p>}
+                        {formState.assignmentRows.length === 0 &&
+                            <p style={{color: '#6c757d'}}>Reiter aus der Liste (rechts) hinzufügen oder Gruppe
+                                laden.</p>}
                         {formState.assignmentRows.map((row, index) => (
                             <div key={row.student.id} style={{
                                 display: 'grid',
-                                gridTemplateColumns: selectedGroupForLoad ? 'auto 1fr 1fr auto' : '1fr 1fr auto',
+                                gridTemplateColumns: selectedGroupForLoad ? 'auto auto 1fr 1fr auto' : 'auto 1fr 1fr auto',
                                 gap: '10px', alignItems: 'center', marginBottom: '10px',
                                 opacity: row.isCancelled ? 0.5 : 1
                             }}>
@@ -738,13 +817,27 @@ export const DailyScheduleManager = () => {
                                         style={{width: '20px', height: '20px'}}
                                     />
                                 )}
+                                <input
+                                    type="checkbox"
+                                    checked={row.isMonthlyCard || false}
+                                    onChange={() => handleToggleMonthlyCard(index)}
+                                    disabled={row.isCancelled}
+                                    title={row.isMonthlyCard ? 'Monatskarte - klicken für 10er-Karte' : '10er-Karte - klicken für Monatskarte'}
+                                    style={{
+                                        width: '20px',
+                                        height: '20px',
+                                        accentColor: row.isMonthlyCard ? '#ff9800' : '#28a745'
+                                    }}
+                                />
                                 <span style={{
                                     fontWeight: 'bold', padding: '8px',
-                                    background: row.isCancelled ? '#ffebee' : '#e9ecef',
+                                    background: row.isCancelled ? '#ffebee' : (row.isMonthlyCard ? '#fff3cd' : '#e9ecef'),
                                     borderRadius: '4px',
-                                    textDecoration: row.isCancelled ? 'line-through' : 'none'
+                                    textDecoration: row.isCancelled ? 'line-through' : 'none',
+                                    border: row.isMonthlyCard && !row.isCancelled ? '2px solid #ff9800' : 'none'
                                 }}>
                                     {row.isCancelled && '🚫 '}
+                                    {row.isMonthlyCard && !row.isCancelled && '📅 '}
                                     {row.student.name}
                                 </span>
                                 <select
@@ -754,25 +847,30 @@ export const DailyScheduleManager = () => {
                                     disabled={row.isCancelled}
                                 >
                                     <option value="">-- Pferd zuweisen --</option>
-                                    {row.horse_id && <option value={row.horse_id}>{allHorses.find(h => h.id === row.horse_id)?.name}</option>}
+                                    {row.horse_id && <option
+                                        value={row.horse_id}>{allHorses.find(h => h.id === row.horse_id)?.name}</option>}
                                     {availableHorsesForDropdown.filter(h => !assignedHorseIdsInForm.has(h.id)).map(h =>
                                         <option key={h.id} value={h.id}>{h.name}</option>
                                     )}
                                 </select>
-                                <button type="button" onClick={() => handleRemoveRiderFromGroup(row.student.id)} style={{
-                                    background: '#dc3545', color: 'white', border: 'none',
-                                    borderRadius: '50%', width: '30px', height: '30px',
-                                    cursor: 'pointer', fontSize: '25px'
-                                }}>×</button>
+                                <button type="button" onClick={() => handleRemoveRiderFromGroup(row.student.id)}
+                                        style={{
+                                            background: '#dc3545', color: 'white', border: 'none',
+                                            borderRadius: '50%', width: '30px', height: '30px',
+                                            cursor: 'pointer', fontSize: '25px'
+                                        }}>×
+                                </button>
                             </div>
                         ))}
 
                         <div style={{display: 'flex', gap: '10px', marginTop: '20px'}}>
-                            <button className="submit-btn" type="submit" disabled={formState.assignmentRows.filter(r => !r.isCancelled).length === 0}>
+                            <button className="submit-btn" type="submit"
+                                    disabled={formState.assignmentRows.filter(r => !r.isCancelled).length === 0}>
                                 {isEditing ? 'Änderungen speichern' : 'Zur Stunde hinzufügen'}
                             </button>
                             {isEditing && (
-                                <button type="button" onClick={handleCancelEdit} className="submit-btn" style={{background: '#6c757d'}}>
+                                <button type="button" onClick={handleCancelEdit} className="submit-btn"
+                                        style={{background: '#6c757d'}}>
                                     Abbrechen
                                 </button>
                             )}
@@ -791,14 +889,22 @@ export const DailyScheduleManager = () => {
                     />
                     <div style={{maxHeight: '250px', overflowY: 'auto', border: '1px solid #ddd', padding: '10px'}}>
                         {availableStudents.map(student => (
-                            <div key={student.id} style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0'}}>
+                            <div key={student.id} style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                padding: '5px 0'
+                            }}>
                                 <span>{student.name}</span>
-                                <button type="button" onClick={() => handleAddRiderToGroup(student)} style={{padding: '2px 8px'}}>+</button>
+                                <button type="button" onClick={() => handleAddRiderToGroup(student)}
+                                        style={{padding: '2px 8px'}}>+
+                                </button>
                             </div>
                         ))}
                     </div>
 
-                    <h4 style={{marginTop: '20px'}}>Verfügbare Pferde ({allHorses.filter(h => !assignedHorseIdsInForm.has(h.id)).length})</h4>
+                    <h4 style={{marginTop: '20px'}}>Verfügbare Pferde
+                        ({allHorses.filter(h => !assignedHorseIdsInForm.has(h.id)).length})</h4>
                     <input
                         type="text"
                         placeholder="Suche Pferde..."
@@ -808,7 +914,10 @@ export const DailyScheduleManager = () => {
                     />
                     <div style={{maxHeight: '250px', overflowY: 'auto', border: '1px solid #ddd', padding: '10px'}}>
                         {availableHorsesForDropdown.map(horse => (
-                            <div key={horse.id} style={{padding: '5px 0', color: assignedHorseIdsInForm.has(horse.id) ? '#adb5bd' : 'inherit'}}>
+                            <div key={horse.id} style={{
+                                padding: '5px 0',
+                                color: assignedHorseIdsInForm.has(horse.id) ? '#adb5bd' : 'inherit'
+                            }}>
                                 {horse.name} {assignedHorseIdsInForm.has(horse.id) ? '(Zugewiesen)' : ''}
                             </div>
                         ))}
@@ -819,22 +928,62 @@ export const DailyScheduleManager = () => {
             <div className="list-section">
                 <h2>Übersicht für {formatDate(date)}</h2>
                 {schedule.length === 0 && <p>Noch keine Stunden erstellt für heute.</p>}
-                {schedule.sort((a,b) => a.time.localeCompare(b.time)).map(slot => (
-                    <div key={slot.id} style={{marginBottom: '20px', padding: '15px', background: '#f9f9f9', borderRadius: '8px'}}>
-                        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #ddd', paddingBottom: '10px', marginBottom: '10px'}}>
+                {schedule.sort((a, b) => a.time.localeCompare(b.time)).map(slot => (
+                    <div key={slot.id}
+                         style={{marginBottom: '20px', padding: '15px', background: '#f9f9f9', borderRadius: '8px'}}>
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            borderBottom: '1px solid #ddd',
+                            paddingBottom: '10px',
+                            marginBottom: '10px'
+                        }}>
                             <h3 style={{margin: 0}}>{slot.time}</h3>
                             <div>
-                                <button onClick={() => handleEditClick(slot)} className="submit-btn" style={{padding: '5px 10px', marginRight: '5px'}}>Bearbeiten</button>
-                                <button onClick={() => handleDeleteSlot(slot.id)} className="submit-btn" style={{padding: '5px 10px', background: '#dc3545' }}>Gruppe löschen</button>
+                                <button onClick={() => handleEditClick(slot)} className="submit-btn"
+                                        style={{padding: '5px 10px', marginRight: '5px'}}>Bearbeiten
+                                </button>
+                                <button onClick={() => handleDeleteSlot(slot.id)} className="submit-btn"
+                                        style={{padding: '5px 10px', background: '#dc3545'}}>Gruppe löschen
+                                </button>
                             </div>
                         </div>
                         {slot.participants.map(p => (
-                            <div key={p.student_id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '5px 0', paddingLeft: '10px' }}>
-                                <p style={{margin: 0}}><strong>{p.student_name}</strong> --- <strong>{p.horse_name}</strong></p>
+                            <div key={p.student_id} style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                margin: '5px 0',
+                                paddingLeft: '10px'
+                            }}>
+                                <p style={{margin: 0}}>
+                                    <strong>{p.student_name}</strong> --- <strong>{p.horse_name}</strong>
+                                    {(p as any).is_monthly_card === 1 && (
+                                        <span style={{
+                                            marginLeft: '10px',
+                                            padding: '2px 8px',
+                                            background: '#ff9800',
+                                            color: 'white',
+                                            borderRadius: '12px',
+                                            fontSize: '0.75em',
+                                            fontWeight: 'bold'
+                                        }}>
+                                            📅 Monatskarte
+                                        </span>
+                                    )}
+                                </p>
                                 <button
                                     onClick={() => handleDeleteParticipant(slot.id, p.student_id)}
                                     title={`Entferne ${p.student_name} von der Stunde`}
-                                    style={{ background: 'none', border: 'none', color: '#dc3545', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' }}
+                                    style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        color: '#dc3545',
+                                        cursor: 'pointer',
+                                        fontWeight: 'bold',
+                                        fontSize: '16px'
+                                    }}
                                 >
                                     &times;
                                 </button>
@@ -845,4 +994,10 @@ export const DailyScheduleManager = () => {
             </div>
         </div>
     );
+
+    //                         <button type="button" onClick={() => setShowGroupSelector(true)} style={{
+    //                             width: '100%', padding: '10px', marginTop: '10px',
+    //                             background: '#17a2b8', color: 'white', border: 'none',
+    //                             borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'
+    //                         }}>📋 Reitergruppe laden</button>
 };

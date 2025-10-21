@@ -209,6 +209,23 @@ const migrations: Migration[] = [
                 );
             `);
         }
+    },
+    // Migration 5: Monatskarte für Lessons
+    {
+        version: 5,
+        name: 'add_monthly_card_to_lessons',
+        up: () => {
+            // Prüfe ob Spalte bereits existiert
+            const tableInfo = db.prepare("PRAGMA table_info(lessons)").all();
+            const hasMonthlyCard = tableInfo.some((col: any) => col.name === 'is_monthly_card');
+
+            if (!hasMonthlyCard) {
+                db.exec(`
+                    ALTER TABLE lessons ADD COLUMN is_monthly_card INTEGER DEFAULT 0;
+                `);
+                console.log('Added is_monthly_card column to lessons table');
+            }
+        }
     }
 ];
 

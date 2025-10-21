@@ -18,14 +18,15 @@ contextBridge.exposeInMainWorld('api', {
     getLessons: () => ipcRenderer.invoke('get-lessons'),
     addLesson: (lesson: any) => ipcRenderer.invoke('add-lesson', lesson),
 
-    // Daily Schedule methods
+    // Daily Schedule methods - MIT MONATSKARTEN PRO REITER
     getDailySchedule: (date: string) => ipcRenderer.invoke('get-daily-schedule', date),
     addScheduleSlot: (slot: any, isSingleLesson: boolean) =>
         ipcRenderer.invoke('add-schedule-slot', slot, isSingleLesson),
     deleteScheduleSlot: (id: number) => ipcRenderer.invoke('delete-schedule-slot', id),
     deleteScheduleParticipant: (scheduleId: number, studentId: number) =>
         ipcRenderer.invoke('delete-schedule-participant', scheduleId, studentId),
-    updateScheduleSlot: (slot: any) => ipcRenderer.invoke('update-schedule-slot', slot),
+    updateScheduleSlot: (slot: any) =>
+        ipcRenderer.invoke('update-schedule-slot', slot),
     printDailySchedule: (date: string) => ipcRenderer.invoke('print-daily-schedule', date),
 
     // Rider Groups methods

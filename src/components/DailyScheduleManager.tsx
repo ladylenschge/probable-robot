@@ -206,6 +206,10 @@ export const DailyScheduleManager = () => {
     };
 
     const handleAddRiderToGroup = (student: IStudent) => {
+        if (formState.isSingleLesson && formState.assignmentRows.length >= 1) {
+            setErrorMessage('Eine Einzelstunde kann nur einen Reiter haben.');
+            return;
+        }
         setFormState(prev => ({
             ...prev,
             assignmentRows: [...prev.assignmentRows, {
@@ -307,6 +311,11 @@ export const DailyScheduleManager = () => {
 
         if (completePairs.length !== activeRows.length || completePairs.length === 0) {
             setErrorMessage('Bitte ein Pferd zu jedem aktiven Reiter zuweisen');
+            return;
+        }
+
+        if(completePairs.length > 1 && isSingleLesson){
+            setErrorMessage('Einzelstunde ausgewählt - nicht mehr als ein Reiter möglich');
             return;
         }
 

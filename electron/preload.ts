@@ -3,8 +3,8 @@ import { contextBridge, ipcRenderer } from 'electron';
 contextBridge.exposeInMainWorld('api', {
     // Student methods
     getStudents: () => ipcRenderer.invoke('get-students'),
-    addStudent: (name: string, contact: string, isMember: boolean) =>
-        ipcRenderer.invoke('add-student', name, contact, isMember),
+    addStudent: (name: string, contact: string, isMember: boolean, isYouth: boolean) =>
+        ipcRenderer.invoke('add-student', name, contact, isMember, isYouth),
     updateStudent: (student: any) => ipcRenderer.invoke('update-student', student),
     deleteStudent: (studentId: number) => ipcRenderer.invoke('delete-student', studentId),
 

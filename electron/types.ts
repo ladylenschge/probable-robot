@@ -3,6 +3,8 @@ export interface IStudent {
     name: string;
     contact_info: string;
     isMember: boolean;
+    isYouth?: boolean;  // NEU
+
 }
 
 export interface IHorse {
@@ -67,6 +69,8 @@ export interface ISchoolInfo {
     blz: string;
     price_10_card_members: number | '';
     price_10_card_nonMembers:  number | '';
+    price_10_card_youth_members: number | '';      // NEU
+    price_10_card_youth_nonMembers: number | '';   // NEU
 }
 export interface IRiderGroup {
     id: number;

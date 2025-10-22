@@ -699,8 +699,8 @@ export const DailyScheduleManager = () => {
                 <button className="submit-btn" onClick={handlePrint} disabled={schedule.length === 0}>
                     Tagesübersicht drucken
                 </button>
-                <button className="submit-btn" onClick={handlePrintMonthly} style={{background: '#28a745'}}>
-                    Monatsübersicht drucken
+                <button className="submit-btn" onClick={handlePrintMonthly} style={{background: 'grey', cursor: 'not-allowed'}} disabled>
+                    Monatsübersicht drucken - currently bugged
                 </button>
             </div>
 

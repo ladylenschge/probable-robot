@@ -12,7 +12,7 @@ import {
 export interface IElectronAPI {
     // Student methods
     getStudents: () => Promise<IStudent[]>;
-    addStudent: (name: string, contact: string, isMember: boolean) => Promise<IStudent>;
+    addStudent: (name: string, contact: string, isMember: boolean, isYouth: boolean) => Promise<IStudent>;
     updateStudent: (student: IStudent) => Promise<IStudent>;
     deleteStudent: (studentId: IStudent["id"]) => Promise<[boolean,string]>;
 

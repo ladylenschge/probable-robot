@@ -259,18 +259,18 @@ async function fetchFullSchedule(date: string): Promise<IDailyScheduleSlot[]> {
 }
 
 ipcMain.handle('get-students', async (): Promise<IStudent[]> => dbQuery('SELECT * FROM students'));
-ipcMain.handle('add-student', async (e, name: string, contact: string, isMember: boolean): Promise<IStudent> => {
-    const result = dbRun('INSERT INTO students (name, contact_info, isMember) VALUES (?, ?, ?)', [name, contact, isMember ? 1 : 0]);
-    return { id: result.lastInsertRowid, name, contact_info: contact, isMember};
+ipcMain.handle('add-student', async (e, name: string, contact: string, isMember: boolean, isYouth: boolean): Promise<IStudent> => {
+    const result = dbRun('INSERT INTO students (name, contact_info, isMember, isYouth) VALUES (?, ?, ?, ?)',
+        [name, contact, isMember ? 1 : 0, isYouth ? 1 : 0]);
+    return { id: result.lastInsertRowid, name, contact_info: contact, isMember, isYouth};
 });
 
 ipcMain.handle('update-student', async (e, student: IStudent): Promise<IStudent> => {
-    const { id, name, contact_info,isMember } = student;
+    const { id, name, contact_info, isMember, isYouth } = student;
     dbRun(
-        'UPDATE students SET name = ?, contact_info = ?, isMember = ? WHERE id = ?',
-        [name, contact_info, isMember ? 1 : 0, id,]
+        'UPDATE students SET name = ?, contact_info = ?, isMember = ?, isYouth = ? WHERE id = ?',
+        [name, contact_info, isMember ? 1 : 0, isYouth ? 1 : 0, id]
     );
-    // Return the updated student object to the frontend
     return student;
 });
 
@@ -416,71 +416,80 @@ ipcMain.handle('delete-schedule-participant', async (e, scheduleId: number, stud
     );
 });
 
-// ============= GENERATE STUDENT REPORT PDF - NUR 10ER-KARTEN =============
+// PDF Generation - MIT Youth-Preis
 async function generateStudentReportPDF(studentId: number, milestone: number) {
-    const studentArr: IStudent[] = dbQuery('SELECT name, isMember FROM students WHERE id = ?', [studentId]);
-    const schoolInfoResults= dbQuery(`SELECT * FROM school_info where id = 1`);
+    const studentArr: IStudent[] = dbQuery('SELECT name, isMember, isYouth FROM students WHERE id = ?', [studentId]);
+    const schoolInfoResults = dbQuery(`SELECT * FROM school_info where id = 1`);
     const schoolInfo = schoolInfoResults.length > 0 ? schoolInfoResults[0] : null;
 
     const schoolName = schoolInfo?.school_name || 'Reitanlage Garnzell';
     const streetAddress = schoolInfo?.street_address || '';
     const zipCode = schoolInfo?.zip_code || '';
     const phoneNumber = schoolInfo?.phone_number || '';
-    let price = schoolInfo?.price_10_card_nonMembers || 100;
     const bankName = schoolInfo?.bank_name || '';
     const iban = schoolInfo?.iban || '';
     const blz = schoolInfo?.blz || '';
 
     if (!studentArr.length) return;
-    const studentName = studentArr[0].name;
-    let isMember = studentArr[0].isMember;
 
-    if(isMember) {
-        price = schoolInfo.price_10_card_members;
+    const studentName = studentArr[0].name;
+    const isMember = studentArr[0].isMember;
+    const isYouth = studentArr[0].isYouth;
+
+    // Preislogik: Jugendlich hat Vorrang
+    let price = schoolInfo?.price_10_card_nonMembers || 100;
+
+    if (isYouth) {
+        // Jugendlicher
+        price = isMember
+            ? schoolInfo?.price_10_card_youth_members || 80
+            : schoolInfo?.price_10_card_youth_nonMembers || 100;
+    } else {
+        // Erwachsener
+        price = isMember
+            ? schoolInfo?.price_10_card_members || 100
+            : schoolInfo?.price_10_card_nonMembers || 120;
     }
 
-    const offset = milestone - 10; // Get the correct block of 10
-    // NUR 10er-Karten-Stunden (keine Einzelstunden, keine Monatskarten)
+    const offset = milestone - 10;
     const lessonDetails: ILesson[] = dbQuery(
         `SELECT l.date, h.name as horse_name, l.notes
          FROM lessons l
-                  JOIN horses h ON l.horse_id = h.id
+         JOIN horses h ON l.horse_id = h.id
          WHERE l.student_id = ? AND l.is_single_lesson = 0 AND l.is_monthly_card = 0
          ORDER BY l.date ASC
          LIMIT 10 OFFSET ?`,
         [studentId, offset]
     );
 
-    // 2. Setup PDF
+    // PDF Setup
     const desktopPath = app.getPath('desktop');
     const filePath = path.join(desktopPath, `10erKarte-${offset + 1}-${milestone}-${studentName}.pdf`);
     const doc = new PDFDocument({ size: 'A5', margin: 20 });
     doc.pipe(fs.createWriteStream(filePath));
 
-    // 3. Build PDF Content
+    // PDF Content
     doc.font('Helvetica-Bold').fontSize(20).text(`${schoolName}`, { align: 'center' });
     doc.fontSize(7).text(`${streetAddress} ${zipCode} - Tel.: ${phoneNumber}`, { align: 'center' });
-    doc.moveDown(0.5)
+    doc.moveDown(0.5);
     doc.fontSize(12).text(`Reitkarte`, { align: 'center' });
     doc.moveDown(0.5);
-    doc.fontSize(9).text(`Für: ${studentName}`, 20, doc.y, { align: 'left', lineBreak: false });
-    doc.fontSize(9).text(`Preis: ${price}€ inkl. MwSt`, 150 ,doc.y, { align: 'right' });
+    doc.fontSize(9).text(`Für: ${studentName}${isYouth ? ' 👶' : ''}`, 20, doc.y, { align: 'left', lineBreak: false });
+    doc.fontSize(9).text(`Preis: ${price}€ inkl. MwSt`, 150, doc.y, { align: 'right' });
 
     doc.moveDown(1.5);
 
-    // Table Generation
+    // Table
     const tableTop = doc.y;
     const tableHeaders = ['Datum', 'Pferd'];
     const columnStarts = [30, 150];
     const columnWidths = [90, 150];
     const lineWidth = doc.page.width - 20;
 
-    // Table Header
     doc.font('Helvetica-Bold').fontSize(11);
     tableHeaders.forEach((header, i) => doc.text(header, columnStarts[i], tableTop, { width: columnWidths[i] }));
     doc.moveTo(30, tableTop + 20).lineTo(lineWidth, tableTop + 20).strokeColor('#aaaaaa').stroke();
 
-    // Table Rows
     let currentRowY = tableTop + 25;
     doc.font('Helvetica').fontSize(10);
     for (const lesson of lessonDetails) {
@@ -496,11 +505,11 @@ async function generateStudentReportPDF(studentId: number, milestone: number) {
     }
 
     doc.moveDown(2);
-    doc.fontSize(7).text('Der oben genannte Betrag wird abgebucht ja/nein',  20, doc.y, { align: 'left'});
+    doc.fontSize(7).text('Der oben genannte Betrag wird abgebucht ja/nein', 20, doc.y, { align: 'left'});
     doc.moveDown(0.5);
-    doc.fontSize(7).text('Zur Information:: Der o.g Betrag setzt sich zusammen aus dem Honorar für Trainer und Unfall/Haftpflichtversicherung (Verein) einerseits, sowie Gebür für das gemietete Pferd (Fam. Schmid) andererseits.', 20, doc.y, { align: 'left' });
+    doc.fontSize(7).text('Zur Information: Der o.g Betrag setzt sich zusammen aus dem Honorar für Trainer und Unfall/Haftpflichtversicherung (Verein) einerseits, sowie Gebühr für das gemietete Pferd (Fam. Schmid) andererseits.', 20, doc.y, { align: 'left' });
 
-    doc.moveDown(2)
+    doc.moveDown(2);
     const footerY = doc.page.height - doc.page.margins.bottom - 20;
     const bankInfoLine = [
         bankName ? `Bank: ${bankName}` : null,
@@ -596,10 +605,21 @@ ipcMain.handle('get-school-info', async (): Promise<ISchoolInfo | null> => {
 });
 
 ipcMain.handle('update-school-info', async (e, info: ISchoolInfo) => {
-    const { school_name, street_address, zip_code, phone_number, fax, bank_name, iban, blz,price_10_card_members, price_10_card_nonMembers } = info;
+    const {
+        school_name, street_address, zip_code, phone_number, fax,
+        bank_name, iban, blz,
+        price_10_card_members, price_10_card_nonMembers,
+        price_10_card_youth_members, price_10_card_youth_nonMembers
+    } = info;
+
     const query = `
-        INSERT INTO school_info (id, school_name, street_address, zip_code, phone_number, bank_name, iban, blz, price_10_card_members, price_10_card_nonMembers)
-        VALUES (1, ?, ?, ?, ?, ?, ?, ?,?, ?)
+        INSERT INTO school_info (
+            id, school_name, street_address, zip_code, phone_number, 
+            bank_name, iban, blz, 
+            price_10_card_members, price_10_card_nonMembers,
+            price_10_card_youth_members, price_10_card_youth_nonMembers
+        )
+        VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             school_name = excluded.school_name,
             street_address = excluded.street_address,
@@ -609,10 +629,18 @@ ipcMain.handle('update-school-info', async (e, info: ISchoolInfo) => {
             iban = excluded.iban,
             blz = excluded.blz,
             price_10_card_members = excluded.price_10_card_members,
-            price_10_card_nonMembers = excluded.price_10_card_nonMembers;
+            price_10_card_nonMembers = excluded.price_10_card_nonMembers,
+            price_10_card_youth_members = excluded.price_10_card_youth_members,
+            price_10_card_youth_nonMembers = excluded.price_10_card_youth_nonMembers;
     `;
-    dbRun(query, [school_name, street_address, zip_code, phone_number, bank_name, iban, blz, price_10_card_members, price_10_card_nonMembers]);
+    dbRun(query, [
+        school_name, street_address, zip_code, phone_number,
+        bank_name, iban, blz,
+        price_10_card_members, price_10_card_nonMembers,
+        price_10_card_youth_members, price_10_card_youth_nonMembers
+    ]);
 });
+
 
 // ============= UPDATE-SCHEDULE-SLOT MIT MONATSKARTEN =============
 ipcMain.handle('update-schedule-slot', async (e, slot: IDailyScheduleSlot, is_monthly_lesson: boolean) => {

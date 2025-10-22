@@ -226,6 +226,69 @@ const migrations: Migration[] = [
                 console.log('Added is_monthly_card column to lessons table');
             }
         }
+    },
+    {
+        version: 6,
+        name: 'add_youth_flag_and_prices',
+        up: () => {
+            // Prüfe ob Spalte bereits existiert
+            const tableInfo = db.prepare("PRAGMA table_info(students)").all();
+            const hasYouth = tableInfo.some((col: any) => col.name === 'isYouth');
+
+            if (!hasYouth) {
+                db.exec(`
+                ALTER TABLE students ADD COLUMN isYouth INTEGER DEFAULT 0;
+            `);
+                console.log('Added isYouth column to students table');
+            }
+
+            // Neue Preisspalten für Kinder/Jugendliche
+            const schoolInfoCols = db.prepare("PRAGMA table_info(school_info)").all();
+            const hasYouthMemberPrice = schoolInfoCols.some((col: any) => col.name === 'price_10_card_youth_members');
+            const hasYouthNonMemberPrice = schoolInfoCols.some((col: any) => col.name === 'price_10_card_youth_nonMembers');
+
+            if (!hasYouthMemberPrice || !hasYouthNonMemberPrice) {
+                db.exec(`
+                CREATE TABLE school_info_new (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    school_name TEXT,
+                    street_address TEXT,
+                    zip_code TEXT,
+                    phone_number TEXT,
+                    bank_name TEXT,
+                    iban TEXT,
+                    blz TEXT,
+                    price_10_card_members REAL DEFAULT 100,
+                    price_10_card_nonMembers REAL DEFAULT 120,
+                    price_10_card_youth_members REAL DEFAULT 80,
+                    price_10_card_youth_nonMembers REAL DEFAULT 100
+                );
+            `);
+
+                // Kopiere bestehende Daten
+                db.exec(`
+                INSERT INTO school_info_new (
+                    id, school_name, street_address, zip_code, phone_number, 
+                    bank_name, iban, blz, 
+                    price_10_card_members, price_10_card_nonMembers,
+                    price_10_card_youth_members, price_10_card_youth_nonMembers
+                )
+                SELECT 
+                    id, school_name, street_address, zip_code, phone_number,
+                    bank_name, iban, blz,
+                    price_10_card_members, price_10_card_nonMembers,
+                    80, 100
+                FROM school_info;
+            `);
+
+                // Lösche alte Tabelle und benenne neue um
+                db.exec(`
+                DROP TABLE school_info;
+                ALTER TABLE school_info_new RENAME TO school_info;
+            `);
+                console.log('Added youth price columns to school_info table');
+            }
+        }
     }
 ];
 

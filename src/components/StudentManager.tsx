@@ -1,9 +1,7 @@
-// src/components/StudentManager.tsx
-
 import React, { useState, useEffect } from 'react';
 import { IStudent } from '../../electron/types';
 
-const initialFormState: IStudent = { id: 0, name: '', contact_info: '', isMember: false };
+const initialFormState: IStudent = { id: 0, name: '', contact_info: '', isMember: false, isYouth: false };
 
 export const StudentManager = () => {
     const [students, setStudents] = useState<IStudent[]>([]);
@@ -16,7 +14,6 @@ export const StudentManager = () => {
         window.api.getStudents().then(setStudents);
     }, []);
 
-    // Auto-hide message after 5 seconds
     useEffect(() => {
         if (message) {
             const timer = setTimeout(() => setMessage(null), 5000);
@@ -48,7 +45,6 @@ export const StudentManager = () => {
                 setStudents(students.filter(s => s.id !== deleteConfirm.id));
                 setMessage({ text: res[1], type: 'success' });
 
-                // Reset form if we were editing the deleted student
                 if (isEditing && formState.id === deleteConfirm.id) {
                     setIsEditing(false);
                     setFormState(initialFormState);
@@ -81,7 +77,7 @@ export const StudentManager = () => {
             setStudents(students.map(s => s.id === updatedStudent.id ? updatedStudent : s));
             setMessage({ text: 'Erfolgreich aktualisiert', type: 'success' });
         } else {
-            const newStudent = await window.api.addStudent(formState.name, formState.contact_info, formState.isMember);
+            const newStudent = await window.api.addStudent(formState.name, formState.contact_info, formState.isMember, formState.isYouth || false);
             setStudents([...students, newStudent]);
             setMessage({ text: 'Erfolgreich hinzugefügt', type: 'success' });
         }
@@ -91,7 +87,6 @@ export const StudentManager = () => {
 
     return (
         <div className="manager-container">
-            {/* Message Notification */}
             {message && (
                 <div style={{
                     position: 'fixed',
@@ -124,7 +119,6 @@ export const StudentManager = () => {
                 </div>
             )}
 
-            {/* Delete Confirmation Modal */}
             {deleteConfirm && (
                 <div style={{
                     position: 'fixed',
@@ -185,6 +179,7 @@ export const StudentManager = () => {
                     <input name="name" value={formState.name} onChange={handleInputChange} placeholder="Name" required/>
                     <textarea name="contact_info" value={formState.contact_info} onChange={handleInputChange}
                               placeholder="Kontaktinfo"/>
+
                     <div style={{display: 'flex', alignItems: 'center', margin: '10px 0'}}>
                         <input
                             type="checkbox"
@@ -195,6 +190,18 @@ export const StudentManager = () => {
                             style={{width: 'auto', marginRight: '10px'}}
                         />
                         <label htmlFor="isMember_checkbox" style={{marginBottom: 0}}>Ist Mitglied?</label>
+                    </div>
+
+                    <div style={{display: 'flex', alignItems: 'center', margin: '10px 0'}}>
+                        <input
+                            type="checkbox"
+                            name="isYouth"
+                            id="isYouth_checkbox"
+                            checked={formState.isYouth || false}
+                            onChange={handleInputChange}
+                            style={{width: 'auto', marginRight: '10px'}}
+                        />
+                        <label htmlFor="isYouth_checkbox" style={{marginBottom: 0}}>Ist Jugendlich/Kind?</label>
                     </div>
 
                     <div style={{display: 'flex', gap: '10px'}}>
@@ -218,6 +225,7 @@ export const StudentManager = () => {
                         <th>Name</th>
                         <th>Kontaktinfo</th>
                         <th>Mitglied</th>
+                        <th>Jugendlich/Kind</th>
                         <th>Aktionen</th>
                     </tr>
                     </thead>
@@ -227,6 +235,7 @@ export const StudentManager = () => {
                             <td>{s.name}</td>
                             <td>{s.contact_info}</td>
                             <td>{s.isMember ? 'Ja' : 'Nein'}</td>
+                            <td>{s.isYouth ? ' Ja' : 'Nein'}</td>
                             <td>
                                 <button onClick={() => handleEditClick(s)} style={{padding: '5px 10px'}}
                                         className="submit-btn">

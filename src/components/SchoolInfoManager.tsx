@@ -3,7 +3,9 @@ import { ISchoolInfo } from '../../electron/types';
 
 const initialInfoState: ISchoolInfo = {
     school_name: '', street_address: '', zip_code: '',
-    bank_name: '', iban: '', blz: '', phone_number: '', fax: '', price_10_card_members: '', price_10_card_nonMembers: ''
+    bank_name: '', iban: '', blz: '', phone_number: '', fax: '',
+    price_10_card_members: '', price_10_card_nonMembers: '',
+    price_10_card_youth_members: '', price_10_card_youth_nonMembers: ''
 };
 
 export const SchoolInfoManager = () => {
@@ -26,10 +28,12 @@ export const SchoolInfoManager = () => {
             ...info,
             price_10_card_members: Number(info.price_10_card_members) || 0,
             price_10_card_nonMembers: Number(info.price_10_card_nonMembers) || 0,
+            price_10_card_youth_members: Number(info.price_10_card_youth_members) || 0,
+            price_10_card_youth_nonMembers: Number(info.price_10_card_youth_nonMembers) || 0,
         };
         await window.api.updateSchoolInfo(infoToSave as ISchoolInfo);
         setSaveMessage('Einstellungen erfolgreich gespeichert!');
-        setTimeout(() => setSaveMessage(''), 6000); // Hide message after 3 seconds
+        setTimeout(() => setSaveMessage(''), 6000);
     };
 
     return (
@@ -60,11 +64,17 @@ export const SchoolInfoManager = () => {
                 <label>BLZ</label>
                 <input name="blz" value={info.blz} onChange={handleChange}/>
 
-                <h4 style={{marginTop: '30px'}}>Preise</h4>
-                <label>Preis für Mitglieder (10er karte)</label>
+                <h4 style={{marginTop: '30px'}}>Preise - Erwachsene</h4>
+                <label>Preis für Mitglieder (10er Karte)</label>
                 <input name="price_10_card_members" type={"number"} value={info.price_10_card_members} onChange={handleChange} placeholder="150"/>
-                <label>Preis für nicht Mitglieder (10er karte)</label>
+                <label>Preis für nicht Mitglieder (10er Karte)</label>
                 <input name="price_10_card_nonMembers" type={"number"} value={info.price_10_card_nonMembers} onChange={handleChange} placeholder="150"/>
+
+                <h4 style={{marginTop: '30px'}}> Preise - Kinder/Jugendliche</h4>
+                <label>Preis für Mitglieder (10er Karte)</label>
+                <input name="price_10_card_youth_members" type={"number"} value={info.price_10_card_youth_members} onChange={handleChange} placeholder="120"/>
+                <label>Preis für nicht Mitglieder (10er Karte)</label>
+                <input name="price_10_card_youth_nonMembers" type={"number"} value={info.price_10_card_youth_nonMembers} onChange={handleChange} placeholder="140"/>
 
                 <button type="submit" className="submit-btn" style={{marginTop: '20px'}}>Einstellung speichern</button>
                 {saveMessage && <p style={{color: 'green', marginTop: '10px'}}>{saveMessage}</p>}

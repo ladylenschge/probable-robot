@@ -32,11 +32,11 @@ function App() {
             <h1>Reitstunden Manager</h1>
             <nav>
                 <button onClick={() => setActiveTab('schedule')} className={activeTab === 'schedule' ? 'active' : ''}>tägliche Reitstunden</button>
+                <button onClick={() => setActiveTab('ridergroup')} className={activeTab === 'ridergroup' ? 'active' : ''}>Reitergruppen</button>
                 <button onClick={() => setActiveTab('students')} className={activeTab === 'students' ? 'active' : ''}>Mitglieder</button>
                 <button onClick={() => setActiveTab('horses')} className={activeTab === 'horses' ? 'active' : ''}>Pferde</button>
                 <button onClick={() => setActiveTab('reports')} className={activeTab === 'reports' ? 'active' : ''}>10er Karten</button>
                 <button onClick={() => setActiveTab('settings')} className={activeTab === 'settings' ? 'active' : ''}>Einstellungen</button>
-                <button onClick={() => setActiveTab('ridergroup')} className={activeTab === 'ridergroup' ? 'active' : ''}>Reitergruppen</button>
             </nav>
             <main>
                 {renderContent()}

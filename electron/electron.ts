@@ -102,6 +102,22 @@ export function initializeAutoUpdater(): void {
 
     // Event: Fehler
     autoUpdater.on('error', (err) => {
+        const errorMessage = err.message?.toLowerCase() || '';
+        const isNetworkError =
+            errorMessage.includes('enotfound') ||
+            errorMessage.includes('etimedout') ||
+            errorMessage.includes('econnreset') ||
+            errorMessage.includes('econnrefused') ||
+            errorMessage.includes('network') ||
+            errorMessage.includes('net::') ||
+            errorMessage.includes('getaddrinfo') ||
+            errorMessage.includes('timeout') ||
+            errorMessage.includes('unable to connect');
+
+        if(isNetworkError){
+            log.info('Netzwerkfehler beim Update-Check - wird beim nächsten Check erneut versucht');
+            return
+        }
         log.error('Fehler im Auto-Updater:', err);
         dialog.showErrorBox(
             'Update-Fehler',

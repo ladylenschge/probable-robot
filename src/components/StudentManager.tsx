@@ -9,6 +9,7 @@ export const StudentManager = () => {
     const [isEditing, setIsEditing] = useState(false);
     const [deleteConfirm, setDeleteConfirm] = useState<IStudent | null>(null);
     const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+    const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
         window.api.getStudents().then(setStudents);
@@ -84,6 +85,12 @@ export const StudentManager = () => {
 
         handleCancelEdit();
     };
+
+    // Filter students based on search term
+    const filteredStudents = students.filter(student =>
+        student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (student.contact_info && student.contact_info.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
 
     return (
         <div className="manager-container">
@@ -218,7 +225,24 @@ export const StudentManager = () => {
                 </form>
             </div>
             <div className="list-section">
-                <h2>Mitgliederliste</h2>
+                <h2>Mitgliederliste ({filteredStudents.length})</h2>
+
+                {/* Suchfeld */}
+                <input
+                    type="text"
+                    placeholder="Suche nach Name oder Kontaktinfo..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    style={{
+                        width: '100%',
+                        padding: '10px',
+                        marginBottom: '15px',
+                        boxSizing: 'border-box',
+                        borderRadius: '4px',
+                        border: '1px solid #ccc'
+                    }}
+                />
+
                 <table>
                     <thead>
                     <tr>
@@ -230,12 +254,12 @@ export const StudentManager = () => {
                     </tr>
                     </thead>
                     <tbody>
-                    {students.map(s => (
+                    {filteredStudents.map(s => (
                         <tr key={s.id}>
                             <td>{s.name}</td>
                             <td>{s.contact_info}</td>
                             <td>{s.isMember ? 'Ja' : 'Nein'}</td>
-                            <td>{s.isYouth ? ' Ja' : 'Nein'}</td>
+                            <td>{s.isYouth ? 'Ja' : 'Nein'}</td>
                             <td>
                                 <button onClick={() => handleEditClick(s)} style={{padding: '5px 10px'}}
                                         className="submit-btn">
@@ -250,6 +274,12 @@ export const StudentManager = () => {
                     ))}
                     </tbody>
                 </table>
+
+                {filteredStudents.length === 0 && searchTerm && (
+                    <p style={{textAlign: 'center', color: '#666', marginTop: '20px'}}>
+                        Keine Mitglieder gefunden.
+                    </p>
+                )}
             </div>
         </div>
     );

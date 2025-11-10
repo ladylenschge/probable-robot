@@ -45,7 +45,7 @@ To install and use the Reitstunden Manager, follow these steps:
 1.  **Go to the Releases Page:** Navigate to the [latest release](https://github.com/ladylenschge/probable-robot/releases/latest) of this repository.
 2.  **Download the Installer:** Under the "Assets" section, download the `.exe` file (e.g., `Reitstunden-Manager-Setup-1.0.0.exe`).
 3.  **Run the Installer:** Double-click the downloaded file and follow the installation instructions. The application will be added to your Start Menu and a desktop shortcut will be created.
-
+4. **Database:** Database is saved in the path: C:\Users\[Username]\AppData\Roaming\reitstunden-manager\riding_school.db or %APPDATA%\reitstunden-manager\riding_school.db
 The application will automatically check for updates whenever you launch it with an internet connection.
 
 ---

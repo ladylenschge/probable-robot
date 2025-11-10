@@ -81,6 +81,8 @@ export const DailyScheduleManager = () => {
         if (date) {
             fetchSchedule(date);
             loadGroupsForDate(date);
+            setFormState(initialFormState);
+            setSelectedGroupForLoad(null)
         }
     }, [date]);
 
